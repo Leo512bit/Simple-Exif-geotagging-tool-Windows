@@ -12,6 +12,7 @@ A simple native Win32 Exif geotagging tool written in C and using WIC as the bac
  - Not truly CRT free due to WIC, might be possible with stubs. Might not even be needed as if a system doesn't have the CRT WIC probably wouldn't even work.
  - If you backspace into a box and try to type in the next box it could say that the value is too high. Might fix later. **Easy workaround: Just tab into the next box.**
  - Custom clipboard doesn't do validation. Might fix later. If you are copy-pasting I'd assume you are pasting from a map.
+ - Compiles all the way down to Vista but the WIC backend fails. Not sure why.
 
 ## License:
 
@@ -31,4 +32,4 @@ To keep this program small and light there is no about box, that would probably 
 So? This source code is pretty useless beyond maintenance. It is entirely native to Windows and cannot be ran on any POSIX system. Even if it could, this can be trivially rewritten.
 
 ## Other information:
-This is my first Windows application (not first Win32 application but first ever Windows application), I know I probably made some mistakes but I am fairly confident in its quality for a first project. I did use some LLM assistants to help with some of the writing as Microsoft's C documentation is lackluster. I do want to make it clear this is **not** vibecoded slop. It took me several days to write with constant corrections and hand written code.
+This is my first time ever programming anything for windows. I know I probably made some mistakes but I am fairly confident in its quality for a first project. I did use some LLM assistants to help with some of the writing as Microsoft's C documentation is lackluster. I do want to make it clear this is **not** vibecoded slop. It took me several days to write with constant corrections and hand written code.
