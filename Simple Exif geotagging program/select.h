@@ -1,3 +1,4 @@
+//© 2024 Leonard Matthew Teyssier BSD-4 Clause License
 #pragma once
 
 #include <windows.h>
