@@ -7,7 +7,6 @@ A simple native Win32 Exif geotagging tool written in C and using WIC as the bac
 - Uses the Windows Imaging Component for reliability.
 - Atomic I/O for safety.
 - Entirely native. Does not use the C runtime except for WIC.
-- ~~Compatible all the way down to Windows Vista.~~ **Note: The binary was built with modern flags and will only run on  Windows 10+, ~~I plan to publish a legacy binary that can run on Vista.~~ As WIC was backported to Windows XP this program can in theory run on XP if `IFileOpenDialog` is replaced with `GetOpenFileName`. I am not doing that, you can fork it if you want.** Actually due to some missing features in WIC (mainly `IWICMetadataBlockWriter`) this can only run on Vista and later. It might be fixable but I think `IWICMetadataBlockWriter` is more robust.
 
  ## Known issues:
  - Not truly CRT free due to WIC, might be possible with stubs. Might not even be needed as if a system doesn't have the CRT WIC probably wouldn't even work.
