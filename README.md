@@ -12,7 +12,7 @@ A simple native Win32 Exif geotagging tool written in C and using WIC as the bac
  - Not truly CRT free due to WIC, might be possible with stubs. Might not even be needed as if a system doesn't have the CRT WIC probably wouldn't even work.
  - If you backspace into a box and try to type in the next box it could say that the value is too high. Might fix later. **Easy workaround: Just tab into the next box.**
  - Custom clipboard doesn't do validation. Might fix later. If you are copy-pasting I'd assume you are pasting from a map.
- - Compiles all the way down to Vista but the WIC backend fails. Not sure why.
+ - Compiles all the way down to Vista but the WIC backend fails on anything lower than Windows 10. Not sure why.
 
 ## License:
 
