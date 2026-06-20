@@ -1,4 +1,4 @@
-//© 2024 Leonard Matthew Teyssier BSD-4 Clause License
+//© 2026 Leonard Matthew Teyssier BSD-4 Clause License
 
 #ifndef UNICODE
 #define UNICODE
