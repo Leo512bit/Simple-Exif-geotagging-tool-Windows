@@ -13,7 +13,7 @@ A simple native Win32 Exif geotagging tool written in C and using WIC as the bac
  - If you backspace into a box and try to type in the next box it could say that the value is too high. Might fix later. **Easy workaround: Just tab into the next box.**
  - Custom clipboard doesn't do validation. Might fix later. If you are copy-pasting I'd assume you are pasting from a map.
  - Compiles all the way down to Vista but the WIC backend fails on anything lower than Windows 10. Not sure why.
- - Missing manifest. Looks blury on display scaling. Plan to fix.
+ - ~~Missing manifest. Looks blury on display scaling. Plan to fix.~~ It is now high DPI aware, but the layout is broken but still usable. Might fix later.
 
 ## License:
 
