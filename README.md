@@ -7,13 +7,17 @@ A simple native Win32 Exif geotagging tool written in C and using WIC as the bac
 - Uses the Windows Imaging Component for reliability.
 - Atomic I/O for safety.
 - Entirely native. Does not use the C runtime except for WIC.
+- Completely high DPI aware.
+- Drag and drop support via COM to ensure drag and drop from any application is supported.
+- Drag and drop support in Windows Explorer (draging files on top of the exe).
+- Optional Transactional NTFS (TxF) support at compile time (see wic_geotag.c). Disabled by default.
 
  ## Known issues:
  - Not truly CRT free due to WIC, might be possible with stubs. Might not even be needed as if a system doesn't have the CRT WIC probably wouldn't even work.
  - If you backspace into a box and try to type in the next box it could say that the value is too high. Might fix later. **Easy workaround: Just tab into the next box.**
- - Custom clipboard doesn't do validation. Might fix later. If you are copy-pasting I'd assume you are pasting from a map.
  - Compiles all the way down to Vista but the WIC backend fails on anything lower than Windows 10. Not sure why.
- - ~~Missing manifest. Looks blury on display scaling. Plan to fix.~~ It is now high DPI aware, but the layout is broken but still usable. Might fix later.
+ - DPI awareness for multi-monitor setups is untested as I don't have such a setup.
+ - Technically not lossless but it is visually lossless. This has been confirmed with tests
 
 ## License:
 
