@@ -4,21 +4,21 @@
 #define UNICODE
 #endif
 
+#define COBJMACROS
 #include <windows.h>
 
-#define memset(dest, c, count) RtlZeroMemory(dest, count)
+//#define memset(dest, c, count) RtlZeroMemory(dest, count)
 
 #include <commctrl.h>
 #include <commdlg.h>
+#include <shellapi.h>
 
 #include "main.h"
 #include "wic_geotag.h"
 #include "select.h"
 
 #pragma comment(lib, "comctl32.lib")
-#pragma comment(linker,"\"/manifestdependency:type='win32' \
-name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
-processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 
 // Control IDs for our UI Elements
@@ -34,6 +34,13 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #define IDC_APPLY    109
 #define IDC_SELECT   110
+
+
+
+static inline int ScaleDpi(int value, UINT dpi) {
+	return MulDiv(value, dpi, 96); // 96 is standard 100% desktop scale
+}
+
 
 // Global safety guard for programmatic UI updates
 BOOL g_IsParsingPaste = FALSE;
@@ -77,10 +84,32 @@ static const wchar_t* CustomWcharFindLastSlash(const wchar_t* pszStr)
 	return pszLast;
 }
 
+
+static void CheckInitialFileArg(void) {
+	int argc = 0;
+	LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+
+	// argv[0] is the executable path, argv[1] is the dropped file
+	if (argv && argc > 1) {
+		lstrcpynW(g_szSelectedFile, argv[1], MAX_PATH);
+	}
+
+	if (argv) {
+		LocalFree(argv);
+	}
+}
+
+
+
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
-	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-	BOOL comInitialized = SUCCEEDED(hr);
-	InitCommonControls();
+	CheckInitialFileArg();
+	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+	HRESULT hr = OleInitialize(NULL);
+	BOOL oledInitialized = SUCCEEDED(hr);
+	INITCOMMONCONTROLSEX icce;
+	icce.dwSize = sizeof(INITCOMMONCONTROLSEX);
+	icce.dwICC = ICC_WIN95_CLASSES;
+	InitCommonControlsEx(&icce);
 
 	const wchar_t CLASS_NAME[] = L"ExifGeotagWindowClass";
 
@@ -93,9 +122,25 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 	RegisterClass(&wc);
 
-	HWND hwnd = CreateWindowEx(0, CLASS_NAME, L"Simple Exif Geotagging Tool", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 580, 200, NULL, NULL, hInstance, NULL);
+
+
+	UINT systemDpi = GetDpiForSystem();
+	int scaledWidth = ScaleDpi(580, systemDpi);
+	int scaledHeight = ScaleDpi(200, systemDpi);
+
+
+	HWND hwnd = CreateWindowEx(0, CLASS_NAME, L"Simple Exif Geotagging Tool", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, scaledWidth, scaledHeight, NULL, NULL, hInstance, NULL);
+	//HWND hwnd = CreateWindowEx(0, CLASS_NAME, L"Simple Exif Geotagging Tool", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 580, 200, NULL, NULL, hInstance, NULL);
 
 	if (hwnd == NULL) return 0;
+
+
+	IDropTarget* pDropTarget = CreateDropTarget(hwnd);
+	if (pDropTarget) {
+		RegisterDragDrop(hwnd, pDropTarget);
+		IDropTarget_Release(pDropTarget);
+	}
+
 
 	/*ShowWindow(hwnd, nCmdShow);
 	UpdateWindow(hwnd);*/
@@ -116,8 +161,9 @@ MSG msg = {0};
 			DispatchMessage(&msg);
 		}
 	}
+	RevokeDragDrop(hwnd);
 
-	if (comInitialized) CoUninitialize();
+	if (oledInitialized) OleUninitialize();
 	ExitProcess(0);
 	//return 0;
 }
@@ -133,36 +179,45 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 
 	switch (uMsg) {
 	case WM_CREATE: {
+
+		UINT dpi = GetDpiForWindow(hwnd);
+
+		
+
+
 		NONCLIENTMETRICS ncm = { 0 };
 		ncm.cbSize = sizeof(NONCLIENTMETRICS) - sizeof(ncm.iPaddedBorderWidth);
 		SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
 		hModernFont = CreateFontIndirect(&ncm.lfMessageFont);
 
 		// --- LATITUDE ROW ---
-		hLatLabel = CreateWindowEx(0, L"STATIC", L"Latitude (DMS):", WS_CHILD | WS_VISIBLE | SS_LEFT, 20, 15, 200, 18, hwnd, NULL, NULL, NULL);
-		hLatDeg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, 20, 40, 45, 25, hwnd, (HMENU)IDC_LAT_DEG, NULL, NULL);
-		hSymD1 = CreateWindowEx(0, L"STATIC", L"°", WS_CHILD | WS_VISIBLE | SS_CENTER, 67, 43, 15, 25, hwnd, NULL, NULL, NULL);
-		hLatMin = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, 85, 40, 40, 25, hwnd, (HMENU)IDC_LAT_MIN, NULL, NULL);
-		hSymM1 = CreateWindowEx(0, L"STATIC", L"'", WS_CHILD | WS_VISIBLE | SS_CENTER, 127, 43, 15, 25, hwnd, NULL, NULL, NULL);
-		hLatSec = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, 145, 40, 65, 25, hwnd, (HMENU)IDC_LAT_SEC, NULL, NULL);
-		hSymS1 = CreateWindowEx(0, L"STATIC", L"\"", WS_CHILD | WS_VISIBLE | SS_CENTER, 212, 43, 15, 25, hwnd, NULL, NULL, NULL);
-		hLatDir = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, 230, 40, 30, 25, hwnd, (HMENU)IDC_LAT_DIR, NULL, NULL);
+		hLatLabel = CreateWindowEx(0, L"STATIC", L"Latitude (DMS):", WS_CHILD | WS_VISIBLE | SS_LEFT, ScaleDpi(20, dpi), ScaleDpi(15, dpi), ScaleDpi(200, dpi), ScaleDpi(18, dpi), hwnd, NULL, NULL, NULL);
+		hLatDeg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, ScaleDpi(20, dpi), ScaleDpi(40, dpi), ScaleDpi(45, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LAT_DEG, NULL, NULL);
+		hSymD1 = CreateWindowEx(0, L"STATIC", L"°", WS_CHILD | WS_VISIBLE | SS_CENTER, ScaleDpi(67, dpi), ScaleDpi(43, dpi), ScaleDpi(15, dpi), ScaleDpi(25, dpi), hwnd, NULL, NULL, NULL);
+		hLatMin = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, ScaleDpi(85, dpi), ScaleDpi(40, dpi), ScaleDpi(40, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LAT_MIN, NULL, NULL);
+		hSymM1 = CreateWindowEx(0, L"STATIC", L"'", WS_CHILD | WS_VISIBLE | SS_CENTER, ScaleDpi(127, dpi), ScaleDpi(43, dpi), ScaleDpi(15, dpi), ScaleDpi(25, dpi), hwnd, NULL, NULL, NULL);
+		hLatSec = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, ScaleDpi(145, dpi), ScaleDpi(40, dpi), ScaleDpi(65, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LAT_SEC, NULL, NULL);
+		hSymS1 = CreateWindowEx(0, L"STATIC", L"\"", WS_CHILD | WS_VISIBLE | SS_CENTER, ScaleDpi(212, dpi), ScaleDpi(43, dpi), ScaleDpi(15, dpi), ScaleDpi(25, dpi), hwnd, NULL, NULL, NULL);
+		hLatDir = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, ScaleDpi(230, dpi), ScaleDpi(40, dpi), ScaleDpi(30, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LAT_DIR, NULL, NULL);
 
 		// --- LONGITUDE ROW ---
-		hLonLabel = CreateWindowEx(0, L"STATIC", L"Longitude (DMS):", WS_CHILD | WS_VISIBLE | SS_LEFT, 300, 15, 200, 18, hwnd, NULL, NULL, NULL);
-		hLonDeg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, 300, 40, 45, 25, hwnd, (HMENU)IDC_LON_DEG, NULL, NULL);
-		hSymD2 = CreateWindowEx(0, L"STATIC", L"°", WS_CHILD | WS_VISIBLE | SS_CENTER, 347, 43, 15, 25, hwnd, NULL, NULL, NULL);
-		hLonMin = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, 365, 40, 40, 25, hwnd, (HMENU)IDC_LON_MIN, NULL, NULL);
-		hSymM2 = CreateWindowEx(0, L"STATIC", L"'", WS_CHILD | WS_VISIBLE | SS_CENTER, 407, 43, 15, 25, hwnd, NULL, NULL, NULL);
-		hLonSec = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, 425, 40, 65, 25, hwnd, (HMENU)IDC_LON_SEC, NULL, NULL);
-		hSymS2 = CreateWindowEx(0, L"STATIC", L"\"", WS_CHILD | WS_VISIBLE | SS_CENTER, 492, 43, 15, 25, hwnd, NULL, NULL, NULL);
-		hLonDir = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, 510, 40, 30, 25, hwnd, (HMENU)IDC_LON_DIR, NULL, NULL);
+		hLonLabel = CreateWindowEx(0, L"STATIC", L"Longitude (DMS):", WS_CHILD | WS_VISIBLE | SS_LEFT, ScaleDpi(300, dpi), ScaleDpi(15, dpi), ScaleDpi(200, dpi), ScaleDpi(18, dpi), hwnd, NULL, NULL, NULL);
+		hLonDeg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, ScaleDpi(300, dpi), ScaleDpi(40, dpi), ScaleDpi(45, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LON_DEG, NULL, NULL);
+		hSymD2 = CreateWindowEx(0, L"STATIC", L"°", WS_CHILD | WS_VISIBLE | SS_CENTER, ScaleDpi(347, dpi), ScaleDpi(43, dpi), ScaleDpi(15, dpi), ScaleDpi(25, dpi), hwnd, NULL, NULL, NULL);
+		hLonMin = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, ScaleDpi(365, dpi), ScaleDpi(40, dpi), ScaleDpi(40, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LON_MIN, NULL, NULL);
+		hSymM2 = CreateWindowEx(0, L"STATIC", L"'", WS_CHILD | WS_VISIBLE | SS_CENTER, ScaleDpi(407, dpi), ScaleDpi(43, dpi), ScaleDpi(15, dpi), ScaleDpi(25, dpi), hwnd, NULL, NULL, NULL);
+		hLonSec = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, ScaleDpi(425, dpi), ScaleDpi(40, dpi), ScaleDpi(65, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LON_SEC, NULL, NULL);
+		hSymS2 = CreateWindowEx(0, L"STATIC", L"\"", WS_CHILD | WS_VISIBLE | SS_CENTER, ScaleDpi(492, dpi), ScaleDpi(43, dpi), ScaleDpi(15, dpi), ScaleDpi(25, dpi), hwnd, NULL, NULL, NULL);
+		hLonDir = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | WS_TABSTOP, ScaleDpi(510, dpi), ScaleDpi(40, dpi), ScaleDpi(30, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LON_DIR, NULL, NULL);
 
+		//hStatusBar = CreateWindowEx(0, STATUSCLASSNAME, NULL, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hwnd, (HMENU)111, NULL, NULL);
 		hStatusBar = CreateWindowEx(0, STATUSCLASSNAME, NULL, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hwnd, (HMENU)111, NULL, NULL);
 
+
+
 		// --- BUTTONS ---
-		hBtnApply = CreateWindowEx(0, L"BUTTON", L"Apply Tag", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP, 20, 95, 110, 32, hwnd, (HMENU)IDC_APPLY, NULL, NULL);
-		hBtnSelect = CreateWindowEx(0, L"BUTTON", L"Select File…", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | WS_TABSTOP, 145, 95, 110, 32, hwnd, (HMENU)IDC_SELECT, NULL, NULL);//BS_DEFPUSHBUTTON
+		hBtnApply = CreateWindowEx(0, L"BUTTON", L"Apply Tag", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP, ScaleDpi(20, dpi), ScaleDpi(95, dpi), ScaleDpi(110, dpi), ScaleDpi(32, dpi), hwnd, (HMENU)IDC_APPLY, NULL, NULL);
+		hBtnSelect = CreateWindowEx(0, L"BUTTON", L"Select File…", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | WS_TABSTOP, ScaleDpi(145, dpi), ScaleDpi(95, dpi), ScaleDpi(110, dpi), ScaleDpi(32, dpi), hwnd, (HMENU)IDC_SELECT, NULL, NULL);//BS_DEFPUSHBUTTON
 
 		HWND controls[] = { hLatLabel, hLatDeg, hSymD1, hLatMin, hSymM1, hLatSec, hSymS1, hLatDir, hLonLabel, hLonDeg, hSymD2, hLonMin, hSymM2, hLonSec, hSymS2, hLonDir, hBtnApply, hBtnSelect };
 		for (int i = 0; i < sizeof(controls) / sizeof(HWND); i++) {
@@ -179,20 +234,74 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		for (int i = 0; i < 8; i++) {
 			SetWindowSubclass(textBoxes[i], SharedEditSubclassProc, i, 0);
 		}
-
-		SetFocus(hBtnSelect);
+		if (g_szSelectedFile[0] != L'\0') {
+			SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
+			SetFocus(hLatDeg);
+		}
+		else {
+			SetFocus(hBtnSelect);
+		}
 		break;
 	}
 
 	case WM_SIZE: {
 		SendMessage(hStatusBar, WM_SIZE, wp, lp);
 
-		int parts[2] = { 80, -1 };
+		UINT dpi = GetDpiForWindow(hwnd);
+		int parts[2] = { ScaleDpi(80, dpi), -1 };
 		SendMessage(hStatusBar, SB_SETPARTS, 2, (LPARAM)parts);
 
 		SendMessage(hStatusBar, SB_SETTEXTW, 0, (LPARAM)L"Selected file:");
+		if (g_szSelectedFile[0] != L'\0') {
+			SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
+		}
 		break;
 	}
+
+
+	case WM_DPICHANGED: {
+		UINT newDpi = LOWORD(wp);
+		RECT* const prcNewWindow = (RECT*)lp;
+
+		// Apply the suggested new window size calculated by the OS
+		SetWindowPos(hwnd, NULL,
+			prcNewWindow->left, prcNewWindow->top,
+			prcNewWindow->right - prcNewWindow->left,
+			prcNewWindow->bottom - prcNewWindow->top,
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		// --- LATITUDE ROW ---
+		MoveWindow(hLatLabel, ScaleDpi(20, newDpi), ScaleDpi(15, newDpi), ScaleDpi(200, newDpi), ScaleDpi(18, newDpi), TRUE);
+		MoveWindow(hLatDeg, ScaleDpi(20, newDpi), ScaleDpi(40, newDpi), ScaleDpi(45, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hSymD1, ScaleDpi(67, newDpi), ScaleDpi(43, newDpi), ScaleDpi(15, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hLatMin, ScaleDpi(85, newDpi), ScaleDpi(40, newDpi), ScaleDpi(40, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hSymM1, ScaleDpi(127, newDpi), ScaleDpi(43, newDpi), ScaleDpi(15, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hLatSec, ScaleDpi(145, newDpi), ScaleDpi(40, newDpi), ScaleDpi(65, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hSymS1, ScaleDpi(212, newDpi), ScaleDpi(43, newDpi), ScaleDpi(15, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hLatDir, ScaleDpi(230, newDpi), ScaleDpi(40, newDpi), ScaleDpi(30, newDpi), ScaleDpi(25, newDpi), TRUE);
+
+		// --- LONGITUDE ROW ---
+		MoveWindow(hLonLabel, ScaleDpi(300, newDpi), ScaleDpi(15, newDpi), ScaleDpi(200, newDpi), ScaleDpi(18, newDpi), TRUE);
+		MoveWindow(hLonDeg, ScaleDpi(300, newDpi), ScaleDpi(40, newDpi), ScaleDpi(45, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hSymD2, ScaleDpi(347, newDpi), ScaleDpi(43, newDpi), ScaleDpi(15, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hLonMin, ScaleDpi(365, newDpi), ScaleDpi(40, newDpi), ScaleDpi(40, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hSymM2, ScaleDpi(407, newDpi), ScaleDpi(43, newDpi), ScaleDpi(15, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hLonSec, ScaleDpi(425, newDpi), ScaleDpi(40, newDpi), ScaleDpi(65, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hSymS2, ScaleDpi(492, newDpi), ScaleDpi(43, newDpi), ScaleDpi(15, newDpi), ScaleDpi(25, newDpi), TRUE);
+		MoveWindow(hLonDir, ScaleDpi(510, newDpi), ScaleDpi(40, newDpi), ScaleDpi(30, newDpi), ScaleDpi(25, newDpi), TRUE);
+
+		// --- BUTTONS ---
+		MoveWindow(hBtnApply, ScaleDpi(20, newDpi), ScaleDpi(95, newDpi), ScaleDpi(110, newDpi), ScaleDpi(32, newDpi), TRUE);
+		MoveWindow(hBtnSelect, ScaleDpi(145, newDpi), ScaleDpi(95, newDpi), ScaleDpi(110, newDpi), ScaleDpi(32, newDpi), TRUE);
+
+		// --- STATUS BAR ---
+		// Force the status bar to recalculate its width relative to the parent window dimensions
+		SendMessageW(hStatusBar, WM_SIZE, 0, 0);
+		int parts[2] = { ScaleDpi(80, newDpi), -1 };
+		SendMessageW(hStatusBar, SB_SETPARTS, 2, (LPARAM)parts);
+		break;
+	}
+
 
 	case WM_CTLCOLORSTATIC: {
 		HDC hdcStatic = (HDC)wp;
@@ -208,14 +317,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 
 		if (notificationCode == BN_CLICKED) {
 			if (controlId == IDC_SELECT) {
-				if (SelectImageFile(hwnd)) {
+				if (SelectImageFile(hwnd)) {//SelectImageFile is defined in select.c "entery point"
 					SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
 					SetFocus(hLatDeg);
 				}
 			}
 			else if (controlId == IDC_APPLY) {
 				if (lstrlenW(g_szSelectedFile) == 0) {
-					MessageBoxW(hwnd, L"Please select an image file first!", L"No File Selected", MB_OK | WS_CAPTION | MB_ICONWARNING);
+					MessageBoxW(hwnd, L"Please select an image file first!", L"No File Selected", MB_OK | MB_ICONWARNING);
 				}
 				else {
 					//wic_geotag.c "entry point"
@@ -258,7 +367,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 	return 0;
 }
 
-LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+
+static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 	if (uMsg == WM_CHAR && (hWnd == hLatDeg || hWnd == hLonDeg)) {
 		wchar_t ch = (wchar_t)wp;
 		if (ch >= L'0' && ch <= L'9') {
@@ -289,11 +399,10 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 				ebt.ttiIcon = TTI_ERROR;
 				SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 				MessageBeep(MB_ICONINFORMATION);
-				return 0;
+				return TRUE;
 			}
 		}
 	}
-
 	if (uMsg == WM_CHAR && (hWnd == hLatMin || hWnd == hLonMin)) {
 		wchar_t ch = (wchar_t)wp;
 		if (ch >= L'0' && ch <= L'9') {
@@ -322,43 +431,10 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 				ebt.ttiIcon = TTI_ERROR;
 				SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 				MessageBeep(MB_ICONINFORMATION);
-				return 0;
+				return TRUE;
 			}
 		}
 	}
-
-	/*(void)uIdSubclass;
-	(void)dwRefData;*/
-
-
-	//Backsapce autojump
-	if (uMsg == WM_CHAR && wp == VK_BACK) {
-		if (GetWindowTextLength(hWnd) == 0) {
-			HWND hTarget = NULL;
-
-			if (hWnd == hLatMin)      hTarget = hLatDeg;
-			else if (hWnd == hLatSec) hTarget = hLatMin;
-			else if (hWnd == hLatDir) hTarget = hLatSec;
-			else if (hWnd == hLonDeg) hTarget = hLatDir;
-			else if (hWnd == hLonMin) hTarget = hLonDeg;
-			else if (hWnd == hLonSec) hTarget = hLonMin;
-			else if (hWnd == hLonDir) hTarget = hLonSec;
-
-			if (hTarget == hLatDir) {
-				SetFocus(hTarget);
-				SendMessage(hTarget, EM_SETSEL, 0, -1);//Selects the entire box during backspace so you can just change the letter without deleting it if you want
-				return 0;
-			}
-			else if (hTarget != NULL) {
-				SetFocus(hTarget);
-				int len = GetWindowTextLength(hTarget);
-				SendMessage(hTarget, EM_SETSEL, len, len);
-				return 0;
-			}
-		}
-	}
-
-	// 2. Block letters manually inside the SECONDS boxes (allow numbers and decimals)
 	if (uMsg == WM_CHAR && (hWnd == hLatSec || hWnd == hLonSec)) {
 		wchar_t ch = (wchar_t)wp;
 		if (ch != VK_BACK && ch != L'.' && (ch < L'0' || ch > L'9')) {
@@ -370,7 +446,7 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 
 			SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 			MessageBeep(MB_ICONINFORMATION);
-			return 0;
+			return TRUE;
 		}
 
 		wchar_t currentText[12] = { 0 };
@@ -383,7 +459,7 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 			ebt.pszText = L"The seconds field can only contain one decimal point.";
 			ebt.ttiIcon = TTI_ERROR;
 			SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
-			return 0;
+			return TRUE;
 		}
 
 		DWORD startSel = 0, endSel = 0;
@@ -421,7 +497,8 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 			ebt.pszText = L"Seconds must be strictly less than 60\".";
 			ebt.ttiIcon = TTI_ERROR;
 			SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
-			return 0;// Reject the keystroke completely
+			MessageBeep(MB_ICONINFORMATION);
+			return TRUE;// Reject the keystroke completely
 		}
 	}
 	// 3. STRICT DIRECTION LOCK: Only allow N/S for Latitude Direction
@@ -435,7 +512,7 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 			ebt.ttiIcon = TTI_ERROR;
 			SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 			MessageBeep(MB_ICONINFORMATION);
-			return 0;// Reject the keystroke completely
+			return TRUE;// Reject the keystroke completely
 		}
 	}
 	// 4. STRICT DIRECTION LOCK: Only allow E/W for Longitude Direction
@@ -449,10 +526,75 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 			ebt.ttiIcon = TTI_ERROR;
 			SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 			MessageBeep(MB_ICONINFORMATION);
-			return 0;// Reject the keystroke completely
+			return TRUE;// Reject the keystroke completely
+		}
+	}
+	return FALSE;
+}
+
+
+
+static BOOL IsValOutOfRange(const wchar_t* str, int maxLimit) {
+	if (!str || str[0] == L'\0') return FALSE;
+	int val = CustomWcharToInt(str);
+	return (val >= maxLimit);
+}
+
+// Helper for seconds (handles decimal points)
+static BOOL IsSecOutOfRange(const wchar_t* str) {
+	if (!str || str[0] == L'\0') return FALSE;
+	int wholeSeconds = 0;
+	const wchar_t* pDot = CustomWcharFindChar(str, L'.');
+	if (pDot) {
+		wchar_t szWholeTemp[16] = { 0 };
+		int wholeLen = (int)(pDot - str);
+		if (wholeLen < 16) {
+			for (int k = 0; k < wholeLen; k++) szWholeTemp[k] = str[k];
+			wholeSeconds = CustomWcharToInt(szWholeTemp);
+		}
+	}
+	else {
+		wholeSeconds = CustomWcharToInt(str);
+	}
+	return (wholeSeconds >= 60);
+}
+
+
+
+LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+	/*(void)uIdSubclass;
+	(void)dwRefData;*/
+
+	//Backsapce autojump
+	if (uMsg == WM_CHAR && wp == VK_BACK) {
+		if (GetWindowTextLength(hWnd) == 0) {
+			HWND hTarget = NULL;
+
+			if (hWnd == hLatMin)      hTarget = hLatDeg;
+			else if (hWnd == hLatSec) hTarget = hLatMin;
+			else if (hWnd == hLatDir) hTarget = hLatSec;
+			else if (hWnd == hLonDeg) hTarget = hLatDir;
+			else if (hWnd == hLonMin) hTarget = hLonDeg;
+			else if (hWnd == hLonSec) hTarget = hLonMin;
+			else if (hWnd == hLonDir) hTarget = hLonSec;
+
+			if (hTarget == hLatDir) {
+				SetFocus(hTarget);
+				SendMessage(hTarget, EM_SETSEL, 0, -1);//Selects the entire box during backspace so you can just change the letter without deleting it if you want
+				return 0;
+			}
+			else if (hTarget != NULL) {
+				SetFocus(hTarget);
+				int len = GetWindowTextLength(hTarget);
+				SendMessage(hTarget, EM_SETSEL, len, len);
+				return 0;
+			}
 		}
 	}
 
+	if (validation(hWnd, uMsg, wp)) {
+		return TRUE; // Block character processing
+	}
 
 	//Custom clipboard paste handling for our coordinate format: "DD°MM'SS.SSS\"H, DDD°MM'SS.SSS\"H" (H = Hemisphere)
 	if (uMsg == WM_PASTE) {
@@ -513,9 +655,24 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 						i++;
 					}
 
+					if (IsValOutOfRange(latD, 90) || IsValOutOfRange(lonD, 180) || IsValOutOfRange(latM, 60) || IsValOutOfRange(lonM, 60) || IsSecOutOfRange(latS) || IsSecOutOfRange(lonS)){
+						EDITBALLOONTIP ebt = { 0 };
+						ebt.cbStruct = sizeof(EDITBALLOONTIP);
+						ebt.pszTitle = L"Pasted Value Out of Range";
+						ebt.pszText = L"The coordinates in your clipboard contain out-of-range values.";
+						ebt.ttiIcon = TTI_ERROR;
+
+						SendMessage(hWnd, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
+						MessageBeep(MB_ICONINFORMATION);
+
+						GlobalUnlock(hData);
+						CloseClipboard();
+						return 0; // Abort paste execution
+					}
+
 					SetWindowTextW(hLatDeg, latD); SetWindowTextW(hLatMin, latM); SetWindowTextW(hLatSec, latS); SetWindowTextW(hLatDir, latRef);
 					SetWindowTextW(hLonDeg, lonD); SetWindowTextW(hLonMin, lonM); SetWindowTextW(hLonSec, lonS); SetWindowTextW(hLonDir, lonRef);
-
+					
 					SetFocus(hLonDir);
 					SendMessage(hLonDir, EM_SETSEL, 0, -1);//Actually bring the cursor to the end. We also want it highlighted so you can just change direction without backspace.
 					g_IsParsingPaste = FALSE;

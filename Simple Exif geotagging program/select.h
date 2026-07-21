@@ -1,4 +1,5 @@
 //© 2026 Leonard Matthew Teyssier BSD-4 Clause License
+
 #pragma once
 
 #include <windows.h>
@@ -8,3 +9,6 @@ extern wchar_t g_szSelectedFile[MAX_PATH];
 
 // Launches the native Windows file picker. Returns TRUE if a file was selected.
 BOOL SelectImageFile(HWND hwndOwner);
+
+// Factory helper to get the IDropTarget interface pointer
+IDropTarget* CreateDropTarget(HWND hwnd);
