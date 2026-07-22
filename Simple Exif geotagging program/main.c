@@ -308,7 +308,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		SetBkMode(hdcStatic, TRANSPARENT);
 		return (LRESULT)GetSysColorBrush(COLOR_3DFACE);
 	}
-
+	//Stupid button fix. DO NOT REMOVE OTHERWISE YOU GET WHITE BOXES/HALOS AROUND THE BUTTONS!!!!!!!!!!!!!!!
+	case WM_CTLCOLORBTN: {
+		return (LRESULT)GetSysColorBrush(COLOR_3DFACE);
+	}
 	case WM_COMMAND: {
 		int controlId = LOWORD(wp);
 		int notificationCode = HIWORD(wp);
