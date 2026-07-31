@@ -11,6 +11,7 @@ A simple native Win32 Exif geotagging tool written in C and using WIC as the bac
 - Drag and drop support via COM to ensure drag and drop from any application is supported.
 - Drag and drop support in Windows Explorer (draging files on top of the exe).
 - Optional Transactional NTFS (TxF) support at compile time (see wic_geotag.c). Disabled by default.
+- Uses Common Controls for a modern native themed look.
 
  ## Known issues:
  - Not truly CRT free due to WIC, might be possible with stubs. Might not even be needed as if a system doesn't have the CRT WIC probably wouldn't even work.
