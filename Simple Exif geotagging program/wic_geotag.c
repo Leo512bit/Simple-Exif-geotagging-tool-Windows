@@ -16,7 +16,7 @@
 
 // Uncomment the following line to use TxF (Transactional NTFS) support rather than tradional copy/rename
 // Disabled by default due to being NTFS only.
-#define TXF
+//#define TXF
 
 #ifdef TXF
 
