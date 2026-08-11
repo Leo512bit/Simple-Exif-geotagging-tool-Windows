@@ -16,7 +16,7 @@ A simple native Win32 Exif geotagging tool written in C and using WIC as the bac
  ## Known issues:
  - Not truly CRT free due to WIC, might be possible with stubs. Might not even be needed as if a system doesn't have the CRT WIC probably wouldn't even work.
  - If you backspace into a box and try to type in the next box it could say that the value is too high. Might fix later. **Easy workaround: Just tab into the next box.**
- - Compiles all the way down to Vista but the WIC backend fails on anything lower than Windows 10. Not sure why.
+ - ~Compiles all the way down to Vista but the WIC backend fails on anything lower than Windows 10. Not sure why.~ Probably not anymore due to `DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2`
  - DPI awareness for multi-monitor setups is untested as I don't have such a setup.
  - Technically not lossless but it is visually lossless. This has been confirmed with tests
 
