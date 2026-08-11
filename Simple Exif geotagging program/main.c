@@ -154,7 +154,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	UpdateWindow(hwnd);
 
 
-MSG msg = {0};
+	MSG msg = { 0 };
 	while (GetMessage(&msg, NULL, 0, 0) > 0) {
 		if (!IsDialogMessage(hwnd, &msg)) {
 			TranslateMessage(&msg);
@@ -182,7 +182,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 
 		UINT dpi = GetDpiForWindow(hwnd);
 
-		
+
 
 
 		NONCLIENTMETRICS ncm = { 0 };
@@ -312,6 +312,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 	case WM_CTLCOLORBTN: {
 		return (LRESULT)GetSysColorBrush(COLOR_3DFACE);
 	}
+
+
 	case WM_COMMAND: {
 		int controlId = LOWORD(wp);
 		int notificationCode = HIWORD(wp);
@@ -344,7 +346,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 			if (controlId == IDC_LAT_DIR && GetWindowTextLength(hLatDir) == 1) { SetFocus(hLonDeg); SendMessage(hLonDeg, EM_SETSEL, 0, -1); }
 			if (controlId == IDC_LON_DEG && GetWindowTextLength(hLonDeg) == 3) { SetFocus(hLonMin); SendMessage(hLonMin, EM_SETSEL, 0, -1); }
 			if (controlId == IDC_LON_MIN && GetWindowTextLength(hLonMin) == 2) { SetFocus(hLonSec); SendMessage(hLonSec, EM_SETSEL, 0, -1); }
-			
+
 			if (controlId == IDC_LON_DIR && GetWindowTextLength(hLonDir) == 1) {
 				//Have hBtnSelect be a regular button again
 				SendMessage(hBtnSelect, BM_SETSTYLE, BS_PUSHBUTTON, TRUE);
@@ -658,7 +660,7 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 						i++;
 					}
 
-					if (IsValOutOfRange(latD, 90) || IsValOutOfRange(lonD, 180) || IsValOutOfRange(latM, 60) || IsValOutOfRange(lonM, 60) || IsSecOutOfRange(latS) || IsSecOutOfRange(lonS)){
+					if (IsValOutOfRange(latD, 90) || IsValOutOfRange(lonD, 180) || IsValOutOfRange(latM, 60) || IsValOutOfRange(lonM, 60) || IsSecOutOfRange(latS) || IsSecOutOfRange(lonS)) {
 						EDITBALLOONTIP ebt = { 0 };
 						ebt.cbStruct = sizeof(EDITBALLOONTIP);
 						ebt.pszTitle = L"Pasted Value Out of Range";
@@ -675,7 +677,7 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 
 					SetWindowTextW(hLatDeg, latD); SetWindowTextW(hLatMin, latM); SetWindowTextW(hLatSec, latS); SetWindowTextW(hLatDir, latRef);
 					SetWindowTextW(hLonDeg, lonD); SetWindowTextW(hLonMin, lonM); SetWindowTextW(hLonSec, lonS); SetWindowTextW(hLonDir, lonRef);
-					
+
 					SetFocus(hLonDir);
 					SendMessage(hLonDir, EM_SETSEL, 0, -1);//Actually bring the cursor to the end. We also want it highlighted so you can just change direction without backspace.
 					g_IsParsingPaste = FALSE;
