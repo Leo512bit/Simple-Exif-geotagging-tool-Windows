@@ -184,10 +184,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 
 
 
-
 		NONCLIENTMETRICS ncm = { 0 };
-		ncm.cbSize = sizeof(NONCLIENTMETRICS) - sizeof(ncm.iPaddedBorderWidth);
-		SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
+		ncm.cbSize = sizeof(NONCLIENTMETRICS);
+		SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0, dpi);
 		hModernFont = CreateFontIndirect(&ncm.lfMessageFont);
 
 		// --- LATITUDE ROW ---
@@ -219,7 +218,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		hBtnApply = CreateWindowEx(0, L"BUTTON", L"Apply Tag", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP, ScaleDpi(20, dpi), ScaleDpi(95, dpi), ScaleDpi(110, dpi), ScaleDpi(32, dpi), hwnd, (HMENU)IDC_APPLY, NULL, NULL);
 		hBtnSelect = CreateWindowEx(0, L"BUTTON", L"Select File…", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | WS_TABSTOP, ScaleDpi(145, dpi), ScaleDpi(95, dpi), ScaleDpi(110, dpi), ScaleDpi(32, dpi), hwnd, (HMENU)IDC_SELECT, NULL, NULL);//BS_DEFPUSHBUTTON
 
-		HWND controls[] = { hLatLabel, hLatDeg, hSymD1, hLatMin, hSymM1, hLatSec, hSymS1, hLatDir, hLonLabel, hLonDeg, hSymD2, hLonMin, hSymM2, hLonSec, hSymS2, hLonDir, hBtnApply, hBtnSelect };
+		HWND controls[] = { hLatLabel, hLatDeg, hSymD1, hLatMin, hSymM1, hLatSec, hSymS1, hLatDir, hLonLabel, hLonDeg, hSymD2, hLonMin, hSymM2, hLonSec, hSymS2, hLonDir, hBtnApply, hBtnSelect, hStatusBar };
 		for (int i = 0; i < sizeof(controls) / sizeof(HWND); i++) {
 			SendMessage(controls[i], WM_SETFONT, (WPARAM)hModernFont, TRUE);
 		}
@@ -248,7 +247,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		SendMessage(hStatusBar, WM_SIZE, wp, lp);
 
 		UINT dpi = GetDpiForWindow(hwnd);
-		int parts[2] = { ScaleDpi(80, dpi), -1 };
+		int parts[2] = { ScaleDpi(71, dpi), -1 };
 		SendMessage(hStatusBar, SB_SETPARTS, 2, (LPARAM)parts);
 
 		SendMessage(hStatusBar, SB_SETTEXTW, 0, (LPARAM)L"Selected file:");
@@ -264,11 +263,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		RECT* const prcNewWindow = (RECT*)lp;
 
 		// Apply the suggested new window size calculated by the OS
-		SetWindowPos(hwnd, NULL,
-			prcNewWindow->left, prcNewWindow->top,
-			prcNewWindow->right - prcNewWindow->left,
-			prcNewWindow->bottom - prcNewWindow->top,
-			SWP_NOZORDER | SWP_NOACTIVATE);
+		SetWindowPos(hwnd, NULL, prcNewWindow->left, prcNewWindow->top, prcNewWindow->right - prcNewWindow->left, prcNewWindow->bottom - prcNewWindow->top, SWP_NOZORDER | SWP_NOACTIVATE);
+
+		// Recreate the font matching the new monitor's DPI
+		DeleteObject(hModernFont);
+		NONCLIENTMETRICS ncm = { 0 };
+		ncm.cbSize = sizeof(NONCLIENTMETRICS);
+		SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0, newDpi);
+		hModernFont = CreateFontIndirect(&ncm.lfMessageFont);
 
 		// --- LATITUDE ROW ---
 		MoveWindow(hLatLabel, ScaleDpi(20, newDpi), ScaleDpi(15, newDpi), ScaleDpi(200, newDpi), ScaleDpi(18, newDpi), TRUE);
@@ -294,11 +296,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		MoveWindow(hBtnApply, ScaleDpi(20, newDpi), ScaleDpi(95, newDpi), ScaleDpi(110, newDpi), ScaleDpi(32, newDpi), TRUE);
 		MoveWindow(hBtnSelect, ScaleDpi(145, newDpi), ScaleDpi(95, newDpi), ScaleDpi(110, newDpi), ScaleDpi(32, newDpi), TRUE);
 
+		// --- UPDATE FONTS FOR ALL CONTROLS ---
+		HWND controls[] = { hLatLabel, hLatDeg, hSymD1, hLatMin, hSymM1, hLatSec, hSymS1, hLatDir, hLonLabel, hLonDeg, hSymD2, hLonMin, hSymM2, hLonSec, hSymS2, hLonDir, hBtnApply, hBtnSelect, hStatusBar };
+		for (int i = 0; i < sizeof(controls) / sizeof(HWND); i++) {
+			SendMessage(controls[i], WM_SETFONT, (WPARAM)hModernFont, TRUE);
+		}
+
 		// --- STATUS BAR ---
-		// Force the status bar to recalculate its width relative to the parent window dimensions
-		SendMessageW(hStatusBar, WM_SIZE, 0, 0);
 		int parts[2] = { ScaleDpi(80, newDpi), -1 };
 		SendMessageW(hStatusBar, SB_SETPARTS, 2, (LPARAM)parts);
+
+		SendMessage(hStatusBar, SB_SETTEXTW, 0, (LPARAM)L"Selected file:");
+		if (g_szSelectedFile[0] != L'\0') {
+			SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
+		}
 		break;
 	}
 
