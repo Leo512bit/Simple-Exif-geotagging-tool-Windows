@@ -37,9 +37,7 @@
 
 
 
-static inline int ScaleDpi(int value, UINT dpi) {
-	return MulDiv(value, dpi, 96); // 96 is standard 100% desktop scale
-}
+static inline INT ScaleDpi(INT value, UINT dpi) {return MulDiv(value, dpi, 96);} //96 is standard 100% desktop scale
 
 
 // Global safety guard for programmatic UI updates
@@ -53,55 +51,56 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp);
 LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 
 // Custom lightweight string-to-integer helper replacing _wtoi
-static int CustomWcharToInt(const wchar_t* pszStr)
+static INT CustomWcharToInt(LPCWSTR pszStr)
 {
-	int result = 0;
-	while (*pszStr >= L'0' && *pszStr <= L'9') {
+	INT result = 0;
+	while (*pszStr >= L'0' && *pszStr <= L'9')
+	{
 		result = (result * 10) + (*pszStr - L'0');
-		pszStr++;
+		++pszStr;
 	}
 	return result;
 }
 
 // Custom locator replacing wcschr
-static const wchar_t* CustomWcharFindChar(const wchar_t* pszStr, wchar_t ch)
+static LPCWSTR CustomWcharFindChar(LPCWSTR pszStr, WCHAR ch)
 {
-	while (*pszStr) {
+	while (*pszStr)
+	{
 		if (*pszStr == ch) return pszStr;
-		pszStr++;
+		++pszStr;
 	}
 	return NULL;
 }
 
 // Locates the final backslash in a path string replacing wcsrchr
-static const wchar_t* CustomWcharFindLastSlash(const wchar_t* pszStr)
+static LPCWSTR CustomWcharFindLastSlash(LPCWSTR pszStr)
 {
-	const wchar_t* pszLast = NULL;
-	while (*pszStr) {
+	LPCWSTR pszLast = NULL;
+	while (*pszStr)
+	{
 		if (*pszStr == L'\\') pszLast = pszStr;
-		pszStr++;
+		++pszStr;
 	}
 	return pszLast;
 }
 
 
-static void CheckInitialFileArg(void) {
-	int argc = 0;
+static VOID CheckInitialFileArg(VOID)
+{
+	INT argc = 0;
 	LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
 
 	// argv[0] is the executable path, argv[1] is the dropped file
-	if (argv && argc > 1) {
-		lstrcpynW(g_szSelectedFile, argv[1], MAX_PATH);
-	}
+	if (argv && argc > 1) lstrcpynW(g_szSelectedFile, argv[1], MAX_PATH);
 
-	if (argv) {
-		LocalFree(argv);
-	}
+	if (argv) LocalFree(argv);
 }
 
 
 
-int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR lpCmdLine, _In_ int nCmdShow) {
+INT WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR lpCmdLine, _In_ INT nCmdShow)
+{
 	CheckInitialFileArg();
 	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 	HRESULT hr = OleInitialize(NULL);
@@ -111,7 +110,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	icce.dwICC = ICC_WIN95_CLASSES;
 	InitCommonControlsEx(&icce);
 
-	const wchar_t CLASS_NAME[] = L"ExifGeotagWindowClass";
+	CONST WCHAR CLASS_NAME[] = L"ExifGeotagWindowClass";
 
 	WNDCLASS wc = { 0 };
 	wc.lpfnWndProc = WindowProc;
@@ -125,8 +124,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 	UINT systemDpi = GetDpiForSystem();
-	int scaledWidth = ScaleDpi(580, systemDpi);
-	int scaledHeight = ScaleDpi(200, systemDpi);
+	INT scaledWidth = ScaleDpi(580, systemDpi);
+	INT scaledHeight = ScaleDpi(200, systemDpi);
 
 
 	HWND hwnd = CreateWindowEx(0, CLASS_NAME, L"Simple Exif Geotagging Tool", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, scaledWidth, scaledHeight, NULL, NULL, hInstance, NULL);
@@ -136,7 +135,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 	IDropTarget* pDropTarget = CreateDropTarget(hwnd);
-	if (pDropTarget) {
+	if (pDropTarget)
+	{
 		RegisterDragDrop(hwnd, pDropTarget);
 		IDropTarget_Release(pDropTarget);
 	}
@@ -149,14 +149,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	//Fix to allow for no runtime dependency on the nCmdShow parameter from WinMain, which can be set to SW_HIDE by certain launchers and would prevent the window from appearing without this workaround
 	STARTUPINFOW si = { sizeof(si) };
 	GetStartupInfoW(&si);
-	int showCmd = (si.dwFlags & STARTF_USESHOWWINDOW) ? si.wShowWindow : SW_SHOWNORMAL;
+	INT showCmd = (si.dwFlags & STARTF_USESHOWWINDOW) ? si.wShowWindow : SW_SHOWNORMAL;
 	ShowWindow(hwnd, showCmd);
 	UpdateWindow(hwnd);
 
 
 	MSG msg = { 0 };
-	while (GetMessage(&msg, NULL, 0, 0) > 0) {
-		if (!IsDialogMessage(hwnd, &msg)) {
+	while (GetMessage(&msg, NULL, 0, 0) > 0)
+	{
+		if (!IsDialogMessage(hwnd, &msg))
+		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
@@ -164,11 +166,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	RevokeDragDrop(hwnd);
 
 	if (oledInitialized) OleUninitialize();
-	ExitProcess(0);
+
+	ExitProcess(0); //Needs to be forceful otherwise it turns into a zombie process.
+	//return (INT)msg.wParam;
 	//return 0;
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp)
+{
 	static HWND hLatLabel, hLonLabel;
 	static HWND hSymD1, hSymM1, hSymS1;
 	static HWND hSymD2, hSymM2, hSymS2;
@@ -177,8 +182,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 	static HWND hStatusBar;
 
 
-	switch (uMsg) {
-	case WM_CREATE: {
+	switch (uMsg)
+	{
+	case WM_CREATE:
+	{
 
 		UINT dpi = GetDpiForWindow(hwnd);
 
@@ -189,6 +196,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0, dpi);
 		hModernFont = CreateFontIndirect(&ncm.lfMessageFont);
 
+
+		//TODO: See about making this an array/matrix
 		// --- LATITUDE ROW ---
 		hLatLabel = CreateWindowEx(0, L"STATIC", L"Latitude (DMS):", WS_CHILD | WS_VISIBLE | SS_LEFT, ScaleDpi(20, dpi), ScaleDpi(15, dpi), ScaleDpi(200, dpi), ScaleDpi(18, dpi), hwnd, NULL, NULL, NULL);
 		hLatDeg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_CENTER | ES_UPPERCASE | ES_NUMBER | WS_TABSTOP, ScaleDpi(20, dpi), ScaleDpi(40, dpi), ScaleDpi(45, dpi), ScaleDpi(25, dpi), hwnd, (HMENU)IDC_LAT_DEG, NULL, NULL);
@@ -219,9 +228,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		hBtnSelect = CreateWindowEx(0, L"BUTTON", L"Select File…", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | WS_TABSTOP, ScaleDpi(145, dpi), ScaleDpi(95, dpi), ScaleDpi(110, dpi), ScaleDpi(32, dpi), hwnd, (HMENU)IDC_SELECT, NULL, NULL);//BS_DEFPUSHBUTTON
 
 		HWND controls[] = { hLatLabel, hLatDeg, hSymD1, hLatMin, hSymM1, hLatSec, hSymS1, hLatDir, hLonLabel, hLonDeg, hSymD2, hLonMin, hSymM2, hLonSec, hSymS2, hLonDir, hBtnApply, hBtnSelect, hStatusBar };
-		for (int i = 0; i < sizeof(controls) / sizeof(HWND); i++) {
-			SendMessage(controls[i], WM_SETFONT, (WPARAM)hModernFont, TRUE);
-		}
+		
+		for (SIZE_T i = 0; i < sizeof(controls) / sizeof(HWND); ++i) SendMessage(controls[i], WM_SETFONT, (WPARAM)hModernFont, TRUE);
 
 		// Hard Character Limits
 		SendMessage(hLatDeg, EM_LIMITTEXT, 2, 0); SendMessage(hLonDeg, EM_LIMITTEXT, 3, 0);
@@ -230,37 +238,38 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 		SendMessage(hLatDir, EM_LIMITTEXT, 1, 0); SendMessage(hLonDir, EM_LIMITTEXT, 1, 0);
 
 		HWND textBoxes[] = { hLatDeg, hLatMin, hLatSec, hLatDir, hLonDeg, hLonMin, hLonSec, hLonDir };
-		for (int i = 0; i < 8; i++) {
-			SetWindowSubclass(textBoxes[i], SharedEditSubclassProc, i, 0);
-		}
-		if (g_szSelectedFile[0] != L'\0') {
+		for (SIZE_T i = 0; i < sizeof(textBoxes) / sizeof(HWND); ++i) SetWindowSubclass(textBoxes[i], SharedEditSubclassProc, i, 0);
+
+		if (g_szSelectedFile[0] != L'\0')
+		{
 			SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
 			SetFocus(hLatDeg);
 		}
-		else {
-			SetFocus(hBtnSelect);
-		}
+		else SetFocus(hBtnSelect);
+
 		break;
 	}
 
-	case WM_SIZE: {
+	case WM_SIZE:
+	{
 		SendMessage(hStatusBar, WM_SIZE, wp, lp);
 
 		UINT dpi = GetDpiForWindow(hwnd);
-		int parts[2] = { ScaleDpi(71, dpi), -1 };
+		INT parts[2] = { ScaleDpi(71, dpi), -1 };
 		SendMessage(hStatusBar, SB_SETPARTS, 2, (LPARAM)parts);
 
 		SendMessage(hStatusBar, SB_SETTEXTW, 0, (LPARAM)L"Selected file:");
-		if (g_szSelectedFile[0] != L'\0') {
-			SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
-		}
+
+		if (g_szSelectedFile[0] != L'\0') SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
+
 		break;
 	}
 
 
-	case WM_DPICHANGED: {
+	case WM_DPICHANGED:
+	{
 		UINT newDpi = LOWORD(wp);
-		RECT* const prcNewWindow = (RECT*)lp;
+		LPRECT CONST prcNewWindow = (LPRECT)lp;
 
 		// Apply the suggested new window size calculated by the OS
 		SetWindowPos(hwnd, NULL, prcNewWindow->left, prcNewWindow->top, prcNewWindow->right - prcNewWindow->left, prcNewWindow->bottom - prcNewWindow->top, SWP_NOZORDER | SWP_NOACTIVATE);
@@ -298,67 +307,67 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 
 		// --- UPDATE FONTS FOR ALL CONTROLS ---
 		HWND controls[] = { hLatLabel, hLatDeg, hSymD1, hLatMin, hSymM1, hLatSec, hSymS1, hLatDir, hLonLabel, hLonDeg, hSymD2, hLonMin, hSymM2, hLonSec, hSymS2, hLonDir, hBtnApply, hBtnSelect, hStatusBar };
-		for (int i = 0; i < sizeof(controls) / sizeof(HWND); i++) {
-			SendMessage(controls[i], WM_SETFONT, (WPARAM)hModernFont, TRUE);
-		}
+		for (SIZE_T i = 0; i < sizeof(controls) / sizeof(HWND); i++) SendMessage(controls[i], WM_SETFONT, (WPARAM)hModernFont, TRUE);
 
 		// --- STATUS BAR ---
-		int parts[2] = { ScaleDpi(80, newDpi), -1 };
+		INT parts[2] = { ScaleDpi(80, newDpi), -1 };
 		SendMessageW(hStatusBar, SB_SETPARTS, 2, (LPARAM)parts);
 
 		SendMessage(hStatusBar, SB_SETTEXTW, 0, (LPARAM)L"Selected file:");
-		if (g_szSelectedFile[0] != L'\0') {
-			SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
-		}
+		if (g_szSelectedFile[0] != L'\0') SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
+
 		break;
 	}
 
 
-	case WM_CTLCOLORSTATIC: {
+	case WM_CTLCOLORSTATIC:
+	{
 		HDC hdcStatic = (HDC)wp;
 		SetBkMode(hdcStatic, TRANSPARENT);
 		return (LRESULT)GetSysColorBrush(COLOR_3DFACE);
 	}
-	//Stupid button fix. DO NOT REMOVE OTHERWISE YOU GET WHITE BOXES/HALOS AROUND THE BUTTONS!!!!!!!!!!!!!!!
+						  //Stupid button fix. DO NOT REMOVE OTHERWISE YOU GET WHITE BOXES/HALOS AROUND THE BUTTONS!!!!!!!!!!!!!!!
 	case WM_CTLCOLORBTN: {
 		return (LRESULT)GetSysColorBrush(COLOR_3DFACE);
 	}
 
 
-	case WM_COMMAND: {
-		int controlId = LOWORD(wp);
-		int notificationCode = HIWORD(wp);
+	case WM_COMMAND:
+	{
+		INT controlId = LOWORD(wp);
+		INT notificationCode = HIWORD(wp);
 
 		if (g_IsParsingPaste) break;
 
-		if (notificationCode == BN_CLICKED) {
-			if (controlId == IDC_SELECT) {
-				if (SelectImageFile(hwnd)) {//SelectImageFile is defined in select.c "entery point"
+		if (notificationCode == BN_CLICKED)
+		{
+			if (controlId == IDC_SELECT)
+			{
+				if (SelectImageFile(hwnd)) //SelectImageFile is defined in select.c This is the "entery point" for that file.
+				{
 					SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
 					SetFocus(hLatDeg);
 				}
 			}
-			else if (controlId == IDC_APPLY) {
-				if (lstrlenW(g_szSelectedFile) == 0) {
-					MessageBoxW(hwnd, L"Please select an image file first!", L"No File Selected", MB_OK | MB_ICONWARNING);
-				}
-				else {
-					//wic_geotag.c "entry point"
-					ApplyGeotag(hwnd, g_szSelectedFile);
-				}
+			else if (controlId == IDC_APPLY)
+			{
+				if (lstrlenW(g_szSelectedFile) == 0) MessageBoxW(hwnd, L"Please select an image file first!", L"No File Selected", MB_OK | MB_ICONWARNING);
+				else ApplyGeotag(hwnd, g_szSelectedFile);//wic_geotag.c "entry point"
 			}
 		}
 
 
 		//Auto-jump to the next field when the current one is filled
-		if (notificationCode == EN_CHANGE) {
-			if (controlId == IDC_LAT_DEG && GetWindowTextLength(hLatDeg) == 2) { SetFocus(hLatMin); SendMessage(hLatMin, EM_SETSEL, 0, -1); }
-			if (controlId == IDC_LAT_MIN && GetWindowTextLength(hLatMin) == 2) { SetFocus(hLatSec); SendMessage(hLatSec, EM_SETSEL, 0, -1); }
-			if (controlId == IDC_LAT_DIR && GetWindowTextLength(hLatDir) == 1) { SetFocus(hLonDeg); SendMessage(hLonDeg, EM_SETSEL, 0, -1); }
-			if (controlId == IDC_LON_DEG && GetWindowTextLength(hLonDeg) == 3) { SetFocus(hLonMin); SendMessage(hLonMin, EM_SETSEL, 0, -1); }
-			if (controlId == IDC_LON_MIN && GetWindowTextLength(hLonMin) == 2) { SetFocus(hLonSec); SendMessage(hLonSec, EM_SETSEL, 0, -1); }
+		if (notificationCode == EN_CHANGE)
+		{
+			if (controlId == IDC_LAT_DEG && GetWindowTextLength(hLatDeg) == 2) {SetFocus(hLatMin); SendMessage(hLatMin, EM_SETSEL, 0, -1);}
+			if (controlId == IDC_LAT_MIN && GetWindowTextLength(hLatMin) == 2) {SetFocus(hLatSec); SendMessage(hLatSec, EM_SETSEL, 0, -1);}
+			if (controlId == IDC_LAT_DIR && GetWindowTextLength(hLatDir) == 1) {SetFocus(hLonDeg); SendMessage(hLonDeg, EM_SETSEL, 0, -1);}
+			if (controlId == IDC_LON_DEG && GetWindowTextLength(hLonDeg) == 3) {SetFocus(hLonMin); SendMessage(hLonMin, EM_SETSEL, 0, -1);}
+			if (controlId == IDC_LON_MIN && GetWindowTextLength(hLonMin) == 2) {SetFocus(hLonSec); SendMessage(hLonSec, EM_SETSEL, 0, -1);}
 
-			if (controlId == IDC_LON_DIR && GetWindowTextLength(hLonDir) == 1) {
+			if (controlId == IDC_LON_DIR && GetWindowTextLength(hLonDir) == 1)
+			{
 				//Have hBtnSelect be a regular button again
 				SendMessage(hBtnSelect, BM_SETSTYLE, BS_PUSHBUTTON, TRUE);
 
@@ -384,30 +393,35 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp) {
 }
 
 
-static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
-	if (uMsg == WM_CHAR && (hWnd == hLatDeg || hWnd == hLonDeg)) {
-		wchar_t ch = (wchar_t)wp;
-		if (ch >= L'0' && ch <= L'9') {
-			wchar_t currentText[4] = { 0 };
-			wchar_t predictedText[5] = { 0 };
+static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp)
+{
+	if (uMsg == WM_CHAR && (hWnd == hLatDeg || hWnd == hLonDeg))
+	{
+		WCHAR ch = (WCHAR)wp;
+		if (ch >= L'0' && ch <= L'9')
+		{
+			WCHAR currentText[4] = { 0 };
+			WCHAR predictedText[5] = { 0 };
 			GetWindowTextW(hWnd, currentText, 4);
 
 			DWORD startSel = 0, endSel = 0;
 			SendMessage(hWnd, EM_GETSEL, (WPARAM)&startSel, (LPARAM)&endSel);
 
-			int len = lstrlenW(currentText);
-			int pIdx = 0;
-			for (int i = 0; i < len; i++) {
-				if (i == (int)startSel) predictedText[pIdx++] = ch;
-				if (i < (int)startSel || i >= (int)endSel) predictedText[pIdx++] = currentText[i];
+			INT len = lstrlenW(currentText);
+			INT pIdx = 0;
+			for (SIZE_T i = 0; i < len; ++i)
+			{
+				if (i == (INT)startSel) predictedText[pIdx++] = ch;
+				if (i < (INT)startSel || i >= (INT)endSel) predictedText[pIdx++] = currentText[i];
 			}
-			if ((int)startSel == len) predictedText[pIdx++] = ch;
+			if ((INT)startSel == len) predictedText[pIdx++] = ch;
 			predictedText[pIdx] = L'\0';
 
-			int predictedVal = CustomWcharToInt(predictedText);
-			int maxLimit = (hWnd == hLatDeg) ? 90 : 180;
+			INT predictedVal = CustomWcharToInt(predictedText);
+			INT maxLimit = (hWnd == hLatDeg) ? 90 : 180;
 
-			if (predictedVal >= maxLimit) {
+			if (predictedVal >= maxLimit)
+			{
 				EDITBALLOONTIP ebt = { 0 };
 				ebt.cbStruct = sizeof(EDITBALLOONTIP);
 				ebt.pszTitle = L"Value Out of Range";
@@ -419,27 +433,32 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 			}
 		}
 	}
-	if (uMsg == WM_CHAR && (hWnd == hLatMin || hWnd == hLonMin)) {
-		wchar_t ch = (wchar_t)wp;
-		if (ch >= L'0' && ch <= L'9') {
-			wchar_t currentText[4] = { 0 };
-			wchar_t predictedText[5] = { 0 };
+	if (uMsg == WM_CHAR && (hWnd == hLatMin || hWnd == hLonMin))
+	{
+		WCHAR ch = (WCHAR)wp;
+		if (ch >= L'0' && ch <= L'9')
+		{
+			WCHAR currentText[4] = { 0 };
+			WCHAR predictedText[5] = { 0 };
 			GetWindowTextW(hWnd, currentText, 4);
 
 			DWORD startSel = 0, endSel = 0;
 			SendMessage(hWnd, EM_GETSEL, (WPARAM)&startSel, (LPARAM)&endSel);
 
-			int len = lstrlenW(currentText);
-			int pIdx = 0;
-			for (int i = 0; i < len; i++) {
-				if (i == (int)startSel) predictedText[pIdx++] = ch;
-				if (i < (int)startSel || i >= (int)endSel) predictedText[pIdx++] = currentText[i];
+			INT len = lstrlenW(currentText);
+			INT pIdx = 0;
+			for (SIZE_T i = 0; i < len; ++i)
+			{
+				if (i == (INT)startSel) predictedText[pIdx++] = ch;
+				if (i < (INT)startSel || i >= (INT)endSel) predictedText[pIdx++] = currentText[i];
 			}
-			if ((int)startSel == len) predictedText[pIdx++] = ch;
+			if ((INT)startSel == len) predictedText[pIdx++] = ch;
+			
 			predictedText[pIdx] = L'\0';
 
-			int predictedVal = CustomWcharToInt(predictedText);
-			if (predictedVal >= 60) {
+			INT predictedVal = CustomWcharToInt(predictedText);
+			if (predictedVal >= 60)
+			{
 				EDITBALLOONTIP ebt = { 0 };
 				ebt.cbStruct = sizeof(EDITBALLOONTIP);
 				ebt.pszTitle = L"Value Out of Range";
@@ -451,9 +470,11 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 			}
 		}
 	}
-	if (uMsg == WM_CHAR && (hWnd == hLatSec || hWnd == hLonSec)) {
-		wchar_t ch = (wchar_t)wp;
-		if (ch != VK_BACK && ch != L'.' && (ch < L'0' || ch > L'9')) {
+	if (uMsg == WM_CHAR && (hWnd == hLatSec || hWnd == hLonSec))
+	{
+		WCHAR ch = (WCHAR)wp;
+		if (ch != VK_BACK && ch != L'.' && (ch < L'0' || ch > L'9'))
+		{
 			EDITBALLOONTIP ebt = { 0 };
 			ebt.cbStruct = sizeof(EDITBALLOONTIP);
 			ebt.pszTitle = L"Unacceptable Character";
@@ -465,10 +486,11 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 			return TRUE;
 		}
 
-		wchar_t currentText[12] = { 0 };
-		wchar_t predictedText[13] = { 0 };
+		WCHAR currentText[12] = { 0 };
+		WCHAR predictedText[13] = { 0 };
 		GetWindowTextW(hWnd, currentText, 12);
-		if (ch == L'.' && CustomWcharFindChar(currentText, L'.') != NULL) {
+		if (ch == L'.' && CustomWcharFindChar(currentText, L'.') != NULL)
+		{
 			EDITBALLOONTIP ebt = { 0 };
 			ebt.cbStruct = sizeof(EDITBALLOONTIP);
 			ebt.pszTitle = L"Invalid Format";
@@ -481,32 +503,35 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 		DWORD startSel = 0, endSel = 0;
 		SendMessage(hWnd, EM_GETSEL, (WPARAM)&startSel, (LPARAM)&endSel);
 
-		int len = lstrlenW(currentText);
-		int pIdx = 0;
+		INT len = lstrlenW(currentText);
+		INT pIdx = 0;
 
-		for (int i = 0; i < len; i++) {
-			if (i == (int)startSel) predictedText[pIdx++] = ch;
-			if (i < (int)startSel || i >= (int)endSel) predictedText[pIdx++] = currentText[i];
+		for (SIZE_T i = 0; i < len; i++)
+		{
+			if (i == (INT)startSel) predictedText[++pIdx] = ch;
+			if (i < (INT)startSel || i >= (INT)endSel) predictedText[++pIdx] = currentText[i];
 		}
-		if ((int)startSel == len) predictedText[pIdx++] = ch;
+		if ((INT)startSel == len) predictedText[pIdx++] = ch;
+
 		predictedText[pIdx] = L'\0';
 
 		// Float-Free String Validation: Evaluate string via integer lengths to check boundary limitations (< 60.0)
-		int wholeSeconds = 0;
-		const wchar_t* pDot = CustomWcharFindChar(predictedText, L'.');
-		if (pDot) {
-			wchar_t szWholeTemp[16] = { 0 };
-			int wholeLen = (int)(pDot - predictedText);
-			if (wholeLen < 16) {
-				for (int k = 0; k < wholeLen; k++) szWholeTemp[k] = predictedText[k];
+		INT wholeSeconds = 0;
+		LPCWSTR pDot = CustomWcharFindChar(predictedText, L'.');
+		if (pDot)
+		{
+			WCHAR szWholeTemp[16] = { 0 };
+			INT wholeLen = (INT)(pDot - predictedText);
+			if (wholeLen < 16)
+			{
+				for (SIZE_T k = 0; k < wholeLen; k++) szWholeTemp[k] = predictedText[k];
 				wholeSeconds = CustomWcharToInt(szWholeTemp);
 			}
 		}
-		else {
-			wholeSeconds = CustomWcharToInt(predictedText);
-		}
+		else wholeSeconds = CustomWcharToInt(predictedText);
 
-		if (wholeSeconds >= 60) {
+		if (wholeSeconds >= 60)
+		{
 			EDITBALLOONTIP ebt = { 0 };
 			ebt.cbStruct = sizeof(EDITBALLOONTIP);
 			ebt.pszTitle = L"Value Out of Range";
@@ -518,8 +543,9 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 		}
 	}
 	// 3. STRICT DIRECTION LOCK: Only allow N/S for Latitude Direction
-	if (uMsg == WM_CHAR && hWnd == hLatDir) {
-		wchar_t ch = (wchar_t)wp;
+	if (uMsg == WM_CHAR && hWnd == hLatDir)
+	{
+		WCHAR ch = (WCHAR)wp;
 		if (ch != VK_BACK && ch != L'N' && ch != L'n' && ch != L'S' && ch != L's') {
 			EDITBALLOONTIP ebt = { 0 };
 			ebt.cbStruct = sizeof(EDITBALLOONTIP);
@@ -532,9 +558,11 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 		}
 	}
 	// 4. STRICT DIRECTION LOCK: Only allow E/W for Longitude Direction
-	if (uMsg == WM_CHAR && hWnd == hLonDir) {
-		wchar_t ch = (wchar_t)wp;
-		if (ch != VK_BACK && ch != L'E' && ch != L'e' && ch != L'W' && ch != L'w') {
+	if (uMsg == WM_CHAR && hWnd == hLonDir)
+	{
+		WCHAR ch = (WCHAR)wp;
+		if (ch != VK_BACK && ch != L'E' && ch != L'e' && ch != L'W' && ch != L'w')
+		{
 			EDITBALLOONTIP ebt = { 0 };
 			ebt.cbStruct = sizeof(EDITBALLOONTIP);
 			ebt.pszTitle = L"Value Out of Range";
@@ -550,40 +578,47 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp) {
 
 
 
-static BOOL IsValOutOfRange(const wchar_t* str, int maxLimit) {
+static BOOL IsValOutOfRange(LPCWSTR str, INT maxLimit)
+{
 	if (!str || str[0] == L'\0') return FALSE;
-	int val = CustomWcharToInt(str);
+
+	INT val = CustomWcharToInt(str);
 	return (val >= maxLimit);
 }
 
 // Helper for seconds (handles decimal points)
-static BOOL IsSecOutOfRange(const wchar_t* str) {
+static BOOL IsSecOutOfRange(LPCWSTR str)
+{
 	if (!str || str[0] == L'\0') return FALSE;
-	int wholeSeconds = 0;
-	const wchar_t* pDot = CustomWcharFindChar(str, L'.');
-	if (pDot) {
-		wchar_t szWholeTemp[16] = { 0 };
-		int wholeLen = (int)(pDot - str);
-		if (wholeLen < 16) {
-			for (int k = 0; k < wholeLen; k++) szWholeTemp[k] = str[k];
+	INT wholeSeconds = 0;
+	LPCWSTR pDot = CustomWcharFindChar(str, L'.');
+	if (pDot)
+	{
+		WCHAR szWholeTemp[16] = { 0 };
+		INT wholeLen = (INT)(pDot - str);
+		if (wholeLen < 16)
+		{
+			for (SIZE_T k = 0; k < wholeLen; ++k) szWholeTemp[k] = str[k];
 			wholeSeconds = CustomWcharToInt(szWholeTemp);
 		}
 	}
-	else {
-		wholeSeconds = CustomWcharToInt(str);
-	}
+	else wholeSeconds = CustomWcharToInt(str);
+
 	return (wholeSeconds >= 60);
 }
 
 
 
-LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
 	/*(void)uIdSubclass;
 	(void)dwRefData;*/
 
 	//Backsapce autojump
-	if (uMsg == WM_CHAR && wp == VK_BACK) {
-		if (GetWindowTextLength(hWnd) == 0) {
+	if (uMsg == WM_CHAR && wp == VK_BACK)
+	{
+		if (GetWindowTextLength(hWnd) == 0)
+		{
 			HWND hTarget = NULL;
 
 			if (hWnd == hLatMin)      hTarget = hLatDeg;
@@ -594,81 +629,88 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 			else if (hWnd == hLonSec) hTarget = hLonMin;
 			else if (hWnd == hLonDir) hTarget = hLonSec;
 
-			if (hTarget == hLatDir) {
+			if (hTarget == hLatDir)
+			{
 				SetFocus(hTarget);
 				SendMessage(hTarget, EM_SETSEL, 0, -1);//Selects the entire box during backspace so you can just change the letter without deleting it if you want
 				return 0;
 			}
-			else if (hTarget != NULL) {
+			else if (hTarget != NULL)
+			{
 				SetFocus(hTarget);
-				int len = GetWindowTextLength(hTarget);
+				INT len = GetWindowTextLength(hTarget);
 				SendMessage(hTarget, EM_SETSEL, len, len);
 				return 0;
 			}
 		}
 	}
 
-	if (validation(hWnd, uMsg, wp)) {
-		return TRUE; // Block character processing
-	}
+	if (validation(hWnd, uMsg, wp)) return TRUE; // Block character processing
 
 	//Custom clipboard paste handling for our coordinate format: "DD°MM'SS.SSS\"H, DDD°MM'SS.SSS\"H" (H = Hemisphere)
-	if (uMsg == WM_PASTE) {
-		if (OpenClipboard(NULL)) {
+	if (uMsg == WM_PASTE)
+	{
+		if (OpenClipboard(NULL))
+		{
 			HANDLE hData = GetClipboardData(CF_UNICODETEXT);
-			if (hData != NULL) {
-				wchar_t* pszText = (wchar_t*)GlobalLock(hData);
-				if (pszText != NULL) {
+			if (hData != NULL)
+			{
+				LPCWSTR pszText = (LPCWSTR)GlobalLock(hData);
+				if (pszText != NULL)
+				{
 					g_IsParsingPaste = TRUE;
 
-					wchar_t latD[4] = { 0 }, latM[3] = { 0 }, latS[8] = { 0 }, latRef[2] = { 0 };
-					wchar_t lonD[4] = { 0 }, lonM[3] = { 0 }, lonS[8] = { 0 }, lonRef[2] = { 0 };
+					WCHAR latD[4] = { 0 }, latM[3] = { 0 }, latS[8] = { 0 }, latRef[2] = { 0 };
+					WCHAR lonD[4] = { 0 }, lonM[3] = { 0 }, lonS[8] = { 0 }, lonRef[2] = { 0 };
 
-					int i = 0;
+					LPCWSTR p = pszText;
 
 					// --- Parse Latitude ---
-					int idx = 0;
-					while (pszText[i] && pszText[i] != L'°' && idx < 3) { if (pszText[i] >= '0' && pszText[i] <= '9') latD[idx++] = pszText[i]; i++; }
-					if (pszText[i] == L'°') i++;
+					INT idx = 0;
+					while (*p && *p != L'°' && idx < 3) { if (*p >= L'0' && *p <= L'9') latD[idx++] = *p; ++p; }
+					if (*p == L'°') ++p;
 
 					idx = 0;
-					while (pszText[i] && pszText[i] != L'\'' && idx < 2) { if (pszText[i] >= '0' && pszText[i] <= '9') latM[idx++] = pszText[i]; i++; }
-					if (pszText[i] == L'\'') i++;
+					while (*p && *p != L'\'' && idx < 2) { if (*p >= L'0' && *p <= L'9') latM[idx++] = *p; ++p; }
+					if (*p == L'\'') ++p;
 
 					idx = 0;
-					while (pszText[i] && pszText[i] != L'\"' && idx < 7) {
-						if ((pszText[i] >= '0' && pszText[i] <= '9') || pszText[i] == L'.') latS[idx++] = pszText[i];
-						i++;
+					while (*p && *p != L'\"' && idx < 7) {
+						if ((*p >= L'0' && *p <= L'9') || *p == L'.') latS[idx++] = *p;
+						++p;
 					}
-					if (pszText[i] == L'\"') i++;
+					if (*p == L'\"') ++p;
 
-					while (pszText[i] && pszText[i] != L' ') {
-						if (pszText[i] == 'N' || pszText[i] == 'n' || pszText[i] == 'S' || pszText[i] == 's') { latRef[0] = pszText[i]; break; }
-						i++;
+					while (*p && *p != L' ')
+					{
+						if (*p == L'N' || *p == L'n' || *p == L'S' || *p == L's') { latRef[0] = *p; ++p; break; }
+						++p;
 					}
 
-					// --- Skip Spaces to find Longitude start ---
-					while (pszText[i] && (pszText[i] == L' ' || pszText[i] == L',')) i++;
+					// --- Skip Spaces / Commas to find Longitude start ---
+					while (*p && (*p == L' ' || *p == L',')) ++p;
 
 					// --- Parse Longitude ---
 					idx = 0;
-					while (pszText[i] && pszText[i] != L'°' && idx < 3) { if (pszText[i] >= '0' && pszText[i] <= '9') lonD[idx++] = pszText[i]; i++; }
-					if (pszText[i] == L'°') i++;
+					while (*p && *p != L'°' && idx < 3) { if (*p >= L'0' && *p <= L'9') lonD[idx++] = *p; ++p; }
+					if (*p == L'°') ++p;
 
 					idx = 0;
-					while (pszText[i] && pszText[i] != L'\'' && idx < 2) { if (pszText[i] >= '0' && pszText[i] <= '9') lonM[idx++] = pszText[i]; i++; }
-					if (pszText[i] == L'\'') i++;
+					while (*p && *p != L'\'' && idx < 2) { if (*p >= L'0' && *p <= L'9') lonM[idx++] = *p; ++p; }
+					if (*p == L'\'') ++p;
 
 					idx = 0;
-					while (pszText[i] && pszText[i] != L'\"' && idx < 7) {
-						if ((pszText[i] >= '0' && pszText[i] <= '9') || pszText[i] == L'.') lonS[idx++] = pszText[i];
-						i++;
+					while (*p && *p != L'\"' && idx < 7)
+					{
+						if ((*p >= L'0' && *p <= L'9') || *p == L'.') lonS[idx++] = *p;
+						++p;
 					}
-					if (pszText[i] == L'\"') i++;
+					if (*p == L'\"') ++p;
 
-					while (pszText[i]) {
-						if (pszText[i] == 'E' || pszText[i] == 'e' || pszText[i] == 'W' || pszText[i] == 'w') { lonRef[0] = pszText[i]; break; }
-						i++;
+					while (*p)
+					{
+						if (*p == L'E' || *p == L'e' || *p == L'W' || *p == L'w') { lonRef[0] = *p; ++p; break; }
+						++p;
 					}
 
 					if (IsValOutOfRange(latD, 90) || IsValOutOfRange(lonD, 180) || IsValOutOfRange(latM, 60) || IsValOutOfRange(lonM, 60) || IsSecOutOfRange(latS) || IsSecOutOfRange(lonS)) {
@@ -683,14 +725,14 @@ LRESULT CALLBACK SharedEditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM 
 
 						GlobalUnlock(hData);
 						CloseClipboard();
-						return 0; // Abort paste execution
+						return 0;
 					}
 
 					SetWindowTextW(hLatDeg, latD); SetWindowTextW(hLatMin, latM); SetWindowTextW(hLatSec, latS); SetWindowTextW(hLatDir, latRef);
 					SetWindowTextW(hLonDeg, lonD); SetWindowTextW(hLonMin, lonM); SetWindowTextW(hLonSec, lonS); SetWindowTextW(hLonDir, lonRef);
 
 					SetFocus(hLonDir);
-					SendMessage(hLonDir, EM_SETSEL, 0, -1);//Actually bring the cursor to the end. We also want it highlighted so you can just change direction without backspace.
+					SendMessage(hLonDir, EM_SETSEL, 0, -1);
 					g_IsParsingPaste = FALSE;
 					GlobalUnlock(hData);
 				}

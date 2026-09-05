@@ -3,4 +3,4 @@
 #pragma once
 #include <windows.h>
 
-void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath);
+VOID ApplyGeotag(HWND hwndOwner, LPCWSTR pszFilePath);

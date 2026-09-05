@@ -13,16 +13,18 @@
 #include "select.h"
 
 // Define the global variable declared in the header
-wchar_t g_szSelectedFile[MAX_PATH] = { 0 };
+WCHAR g_szSelectedFile[MAX_PATH] = { 0 };
 
-BOOL SelectImageFile(HWND hwndOwner) {
+BOOL SelectImageFile(HWND hwndOwner)
+{
     IFileOpenDialog* pFileOpen = NULL;
     
-    HRESULT hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOpenDialog, (void**)&pFileOpen);
+    HRESULT hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOpenDialog, (VOID**)&pFileOpen);
     if (FAILED(hr)) return FALSE;
 
     // Define allowed JPEG file types
-    COMDLG_FILTERSPEC fileTypes[] = {
+    COMDLG_FILTERSPEC fileTypes[] =
+	{
         { L"JPEG Images (*.jpg; *.jpeg)", L"*.jpg;*.jpeg" },
         { L"All Files (*.*)", L"*.*" }
     };
@@ -32,14 +34,17 @@ BOOL SelectImageFile(HWND hwndOwner) {
 
     // Display the dialog box
     hr = IFileOpenDialog_Show(pFileOpen, hwndOwner);
-    if (SUCCEEDED(hr)) {
+    if (SUCCEEDED(hr))
+	{
         IShellItem* pItem = NULL;
         hr = IFileOpenDialog_GetResult(pFileOpen, &pItem);
-        if (SUCCEEDED(hr)) {
-            wchar_t* pszFilePath = NULL;
+        if (SUCCEEDED(hr))
+		{
+			LPCWSTR pszFilePath = NULL;
             hr = IShellItem_GetDisplayName(pItem, SIGDN_FILESYSPATH, &pszFilePath);
             
-            if (SUCCEEDED(hr)) {
+            if (SUCCEEDED(hr))
+			{
                 // Safely copy the string buffer over to our global path variable
 				lstrcpynW(g_szSelectedFile, pszFilePath, MAX_PATH);
                 CoTaskMemFree(pszFilePath);
@@ -64,7 +69,7 @@ typedef struct {
 } DropTargetImpl;
 
 // Forward declarations for the Vtbl
-HRESULT STDMETHODCALLTYPE DropTarget_QueryInterface(IDropTarget* This, REFIID riid, void** ppvObject);
+HRESULT STDMETHODCALLTYPE DropTarget_QueryInterface(IDropTarget* This, REFIID riid, LPVOID* ppvObject);
 ULONG STDMETHODCALLTYPE DropTarget_AddRef(IDropTarget* This);
 ULONG STDMETHODCALLTYPE DropTarget_Release(IDropTarget* This);
 HRESULT STDMETHODCALLTYPE DropTarget_DragEnter(IDropTarget* This, IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect);
@@ -84,9 +89,11 @@ static IDropTargetVtbl DropTarget_Vtbl = {
 };
 
 // Allocation helper
-IDropTarget* CreateDropTarget(HWND hwnd) {
+IDropTarget* CreateDropTarget(HWND hwnd)
+{
 	DropTargetImpl* pImpl = (DropTargetImpl*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(DropTargetImpl));
-	if (pImpl) {
+	if (pImpl)
+	{
 		pImpl->lpVtbl = &DropTarget_Vtbl;
 		pImpl->refCount = 1;
 		pImpl->hwnd = hwnd;
@@ -96,9 +103,11 @@ IDropTarget* CreateDropTarget(HWND hwnd) {
 
 // --- COM Method Implementations ---
 
-HRESULT STDMETHODCALLTYPE DropTarget_QueryInterface(IDropTarget* This, REFIID riid, void** ppvObject) {
+HRESULT STDMETHODCALLTYPE DropTarget_QueryInterface(IDropTarget* This, REFIID riid, LPVOID* ppvObject)
+{
 	if (!ppvObject) return E_POINTER;
-	if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDropTarget)) {
+	if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDropTarget))
+	{
 		IDropTarget_AddRef(This);
 		*ppvObject = This;
 		return S_OK;
@@ -107,54 +116,61 @@ HRESULT STDMETHODCALLTYPE DropTarget_QueryInterface(IDropTarget* This, REFIID ri
 	return E_NOINTERFACE;
 }
 
-ULONG STDMETHODCALLTYPE DropTarget_AddRef(IDropTarget* This) {
+ULONG STDMETHODCALLTYPE DropTarget_AddRef(IDropTarget* This)
+{
 	DropTargetImpl* pImpl = (DropTargetImpl*)This;
 	return InterlockedIncrement(&pImpl->refCount);
 }
 
-ULONG STDMETHODCALLTYPE DropTarget_Release(IDropTarget* This) {
+ULONG STDMETHODCALLTYPE DropTarget_Release(IDropTarget* This)
+{
 	DropTargetImpl* pImpl = (DropTargetImpl*)This;
 	LONG count = InterlockedDecrement(&pImpl->refCount);
-	if (count == 0) {
+	if (count == 0)
+	{
 		HeapFree(GetProcessHeap(), 0, pImpl);
 		return 0;
 	}
 	return count;
 }
 
-HRESULT STDMETHODCALLTYPE DropTarget_DragEnter(IDropTarget* This, IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+HRESULT STDMETHODCALLTYPE DropTarget_DragEnter(IDropTarget* This, IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect)
+{
 	*pdwEffect &= DROPEFFECT_COPY;
 	return S_OK;
 }
 
-HRESULT STDMETHODCALLTYPE DropTarget_DragOver(IDropTarget* This, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+HRESULT STDMETHODCALLTYPE DropTarget_DragOver(IDropTarget* This, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect)
+{
 	*pdwEffect &= DROPEFFECT_COPY;
 	return S_OK;
 }
 
-HRESULT STDMETHODCALLTYPE DropTarget_DragLeave(IDropTarget* This) {
+HRESULT STDMETHODCALLTYPE DropTarget_DragLeave(IDropTarget* This)
+{
 	return S_OK;
 }
 
 
-HRESULT STDMETHODCALLTYPE DropTarget_Drop(IDropTarget* This, IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+HRESULT STDMETHODCALLTYPE DropTarget_Drop(IDropTarget* This, IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect)
+{
 	DropTargetImpl* pImpl = (DropTargetImpl*)This;
 
 	FORMATETC fmt = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
 	STGMEDIUM med;
 
-	if (SUCCEEDED(IDataObject_GetData(pDataObj, &fmt, &med))) {
+	if (SUCCEEDED(IDataObject_GetData(pDataObj, &fmt, &med)))
+	{
 		HDROP hDrop = (HDROP)GlobalLock(med.hGlobal);
-		if (hDrop) {
+		if (hDrop)
+		{
 			// Grab the first file dropped
 			DragQueryFileW(hDrop, 0, g_szSelectedFile, MAX_PATH);
 			GlobalUnlock(med.hGlobal);
 
 
 			HWND hBar = FindWindowExW(pImpl->hwnd, NULL, STATUSCLASSNAMEW, NULL);
-			if (hBar) {
-				SendMessageW(hBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
-			}
+			if (hBar) SendMessageW(hBar, SB_SETTEXTW, 1, (LPARAM)g_szSelectedFile);
 
 			// Bring focus to the window and coordinate field
 			SetForegroundWindow(pImpl->hwnd);
@@ -165,8 +181,7 @@ HRESULT STDMETHODCALLTYPE DropTarget_Drop(IDropTarget* This, IDataObject* pDataO
 		}
 		ReleaseStgMedium(&med);
 	}
-	else {
-		*pdwEffect = DROPEFFECT_NONE;
-	}
+	else *pdwEffect = DROPEFFECT_NONE;
+
 	return S_OK;
 }

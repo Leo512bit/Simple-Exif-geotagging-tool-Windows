@@ -1,4 +1,6 @@
 //© 2026 Leonard Matthew Teyssier BSD-4 Clause License
+
+//TODO: rework txf memory
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -36,21 +38,21 @@
  -------------------------------------------------------------------------*/
 #ifdef TXF
 typedef struct {
-	const IStreamVtbl* lpVtbl;
+	CONST IStreamVtbl* lpVtbl;
 	LONG refCount;
 	HANDLE hTransactedFile;
 } TxFStream;
 
 // Forward declarations for the VTable 
 
-HRESULT STDMETHODCALLTYPE TxF_QueryInterface(IStream* This, REFIID riid, void** ppvObject);
+HRESULT STDMETHODCALLTYPE TxF_QueryInterface(IStream* This, REFIID riid, LPVOID* ppvObject);
 ULONG STDMETHODCALLTYPE TxF_AddRef(IStream* This);
 ULONG STDMETHODCALLTYPE TxF_Release(IStream* This);
-HRESULT STDMETHODCALLTYPE TxF_Read(IStream* This, void* pv, ULONG cb, ULONG* pcbRead);
-HRESULT STDMETHODCALLTYPE TxF_Write(IStream* This, const void* pv, ULONG cb, ULONG* pcbWritten);
-HRESULT STDMETHODCALLTYPE TxF_Seek(IStream* This, LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER* plibNewPosition);
+HRESULT STDMETHODCALLTYPE TxF_Read(IStream* This, LPVOID pv, ULONG cb, ULONG* pcbRead);
+HRESULT STDMETHODCALLTYPE TxF_Write(IStream* This, LPCVOID pv, ULONG cb, ULONG* pcbWritten);
+HRESULT STDMETHODCALLTYPE TxF_Seek(IStream* This, LARGE_INTEGER dlibMove, DWORD dwOrigin, PULARGE_INTEGER plibNewPosition);
 HRESULT STDMETHODCALLTYPE TxF_SetSize(IStream* This, ULARGE_INTEGER libNewSize);
-HRESULT STDMETHODCALLTYPE TxF_CopyTo(IStream* This, IStream* pstm, ULARGE_INTEGER cb, ULARGE_INTEGER* pcbRead, ULARGE_INTEGER* pcbWritten);
+HRESULT STDMETHODCALLTYPE TxF_CopyTo(IStream* This, IStream* pstm, ULARGE_INTEGER cb, PULARGE_INTEGER pcbRead, PULARGE_INTEGER pcbWritten);
 HRESULT STDMETHODCALLTYPE TxF_Commit(IStream* This, DWORD grfCommitFlags);
 HRESULT STDMETHODCALLTYPE TxF_Revert(IStream* This);
 HRESULT STDMETHODCALLTYPE TxF_LockRegion(IStream* This, ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType);
@@ -64,10 +66,12 @@ static IStreamVtbl TxFStream_Vtbl = {
 	TxF_Revert, TxF_LockRegion, TxF_UnlockRegion, TxF_Stat, TxF_Clone
 };
 
-HRESULT STDMETHODCALLTYPE TxF_QueryInterface(IStream* This, REFIID riid, void** ppvObject) {
+HRESULT STDMETHODCALLTYPE TxF_QueryInterface(IStream* This, REFIID riid, LPVOID* ppvObject)
+{
 	if (!ppvObject) return E_POINTER;
 	*ppvObject = NULL;
-	if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IStream) || IsEqualIID(riid, &IID_ISequentialStream)) {
+	if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IStream) || IsEqualIID(riid, &IID_ISequentialStream))
+	{
 		*ppvObject = This;
 		TxF_AddRef(This);
 		return S_OK;
@@ -75,44 +79,50 @@ HRESULT STDMETHODCALLTYPE TxF_QueryInterface(IStream* This, REFIID riid, void** 
 	return E_NOINTERFACE;
 }
 
-ULONG STDMETHODCALLTYPE TxF_AddRef(IStream* This) {
+ULONG STDMETHODCALLTYPE TxF_AddRef(IStream* This)
+{
 	TxFStream* pTxF = (TxFStream*)This;
 	return InterlockedIncrement(&pTxF->refCount);
 }
 
-ULONG STDMETHODCALLTYPE TxF_Release(IStream* This) {
+ULONG STDMETHODCALLTYPE TxF_Release(IStream* This)
+{
 	TxFStream* pTxF = (TxFStream*)This;
 	LONG count = InterlockedDecrement(&pTxF->refCount);
-	if (count == 0) {
-		if (pTxF->hTransactedFile && pTxF->hTransactedFile != INVALID_HANDLE_VALUE) {
-			CloseHandle(pTxF->hTransactedFile);
-		}
+	if (count == 0)
+	{
+		if (pTxF->hTransactedFile && pTxF->hTransactedFile != INVALID_HANDLE_VALUE) CloseHandle(pTxF->hTransactedFile);
 		HeapFree(GetProcessHeap(), 0, pTxF);
 	}
 	return count;
 }
 
-HRESULT STDMETHODCALLTYPE TxF_Read(IStream* This, void* pv, ULONG cb, ULONG* pcbRead) {
+HRESULT STDMETHODCALLTYPE TxF_Read(IStream* This, LPVOID pv, ULONG cb, ULONG* pcbRead)
+{
 	TxFStream* pTxF = (TxFStream*)This;
 	DWORD bytesRead = 0;
-	if (ReadFile(pTxF->hTransactedFile, pv, cb, &bytesRead, NULL)) {
+	if (ReadFile(pTxF->hTransactedFile, pv, cb, &bytesRead, NULL))
+	{
 		if (pcbRead) *pcbRead = bytesRead;
 		return S_OK;
 	}
 	return HRESULT_FROM_WIN32(GetLastError());
 }
 
-HRESULT STDMETHODCALLTYPE TxF_Write(IStream* This, const void* pv, ULONG cb, ULONG* pcbWritten) {
+HRESULT STDMETHODCALLTYPE TxF_Write(IStream* This, LPCVOID pv, ULONG cb, ULONG* pcbWritten)
+{
 	TxFStream* pTxF = (TxFStream*)This;
 	DWORD bytesWritten = 0;
-	if (WriteFile(pTxF->hTransactedFile, pv, cb, &bytesWritten, NULL)) {
+	if (WriteFile(pTxF->hTransactedFile, pv, cb, &bytesWritten, NULL))
+	{
 		if (pcbWritten) *pcbWritten = bytesWritten;
 		return S_OK;
 	}
 	return HRESULT_FROM_WIN32(GetLastError());
 }
 
-HRESULT STDMETHODCALLTYPE TxF_Seek(IStream* This, LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER* plibNewPosition) {
+HRESULT STDMETHODCALLTYPE TxF_Seek(IStream* This, LARGE_INTEGER dlibMove, DWORD dwOrigin, PULARGE_INTEGER plibNewPosition)
+{
 	TxFStream* pTxF = (TxFStream*)This;
 	LARGE_INTEGER newPos;
 	DWORD moveMethod;
@@ -124,14 +134,16 @@ HRESULT STDMETHODCALLTYPE TxF_Seek(IStream* This, LARGE_INTEGER dlibMove, DWORD 
 	default: return STG_E_INVALIDFUNCTION;
 	}
 
-	if (SetFilePointerEx(pTxF->hTransactedFile, dlibMove, &newPos, moveMethod)) {
+	if (SetFilePointerEx(pTxF->hTransactedFile, dlibMove, &newPos, moveMethod))
+	{
 		if (plibNewPosition) plibNewPosition->QuadPart = newPos.QuadPart;
 		return S_OK;
 	}
 	return HRESULT_FROM_WIN32(GetLastError());
 }
 
-HRESULT STDMETHODCALLTYPE TxF_SetSize(IStream* This, ULARGE_INTEGER libNewSize) {
+HRESULT STDMETHODCALLTYPE TxF_SetSize(IStream* This, ULARGE_INTEGER libNewSize)
+{
 	TxFStream* pTxF = (TxFStream*)This;
 	LARGE_INTEGER newPos;
 	newPos.QuadPart = libNewSize.QuadPart;
@@ -141,12 +153,14 @@ HRESULT STDMETHODCALLTYPE TxF_SetSize(IStream* This, ULARGE_INTEGER libNewSize) 
 	return HRESULT_FROM_WIN32(GetLastError());
 }
 
-HRESULT STDMETHODCALLTYPE TxF_Stat(IStream* This, STATSTG* pstatstg, DWORD grfStatFlag) {
+HRESULT STDMETHODCALLTYPE TxF_Stat(IStream* This, STATSTG* pstatstg, DWORD grfStatFlag)
+{
 	if (!pstatstg) return E_POINTER;
 	ZeroMemory(pstatstg, sizeof(STATSTG));
 	TxFStream* pTxF = (TxFStream*)This;
 	LARGE_INTEGER fileSize;
-	if (GetFileSizeEx(pTxF->hTransactedFile, &fileSize)) {
+	if (GetFileSizeEx(pTxF->hTransactedFile, &fileSize))
+	{
 		pstatstg->cbSize = *(ULARGE_INTEGER*)&fileSize;
 		pstatstg->type = STGTY_STREAM;
 		return S_OK;
@@ -154,16 +168,18 @@ HRESULT STDMETHODCALLTYPE TxF_Stat(IStream* This, STATSTG* pstatstg, DWORD grfSt
 	return HRESULT_FROM_WIN32(GetLastError());
 }
 
-HRESULT STDMETHODCALLTYPE TxF_CopyTo(IStream* This, IStream* pstm, ULARGE_INTEGER cb, ULARGE_INTEGER* pcbRead, ULARGE_INTEGER* pcbWritten) { return E_NOTIMPL; }
+HRESULT STDMETHODCALLTYPE TxF_CopyTo(IStream* This, IStream* pstm, ULARGE_INTEGER cb, PULARGE_INTEGER pcbRead, PULARGE_INTEGER pcbWritten) { return E_NOTIMPL; }
 HRESULT STDMETHODCALLTYPE TxF_Commit(IStream* This, DWORD grfCommitFlags) { return FlushFileBuffers(((TxFStream*)This)->hTransactedFile) ? S_OK : HRESULT_FROM_WIN32(GetLastError()); }
 HRESULT STDMETHODCALLTYPE TxF_Revert(IStream* This) { return E_NOTIMPL; }
 HRESULT STDMETHODCALLTYPE TxF_LockRegion(IStream* This, ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) { return E_NOTIMPL; }
 HRESULT STDMETHODCALLTYPE TxF_UnlockRegion(IStream* This, ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) { return E_NOTIMPL; }
 HRESULT STDMETHODCALLTYPE TxF_Clone(IStream* This, IStream** ppstm) { return E_NOTIMPL; }
 
-IStream* CreateTransactedStream(HANDLE hFile) {
+IStream* CreateTransactedStream(HANDLE hFile)
+{
 	TxFStream* pStream = (TxFStream*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(TxFStream));
-	if (pStream) {
+	if (pStream)
+	{
 		pStream->lpVtbl = &TxFStream_Vtbl;
 		pStream->refCount = 1;
 		pStream->hTransactedFile = hFile;
@@ -176,23 +192,27 @@ IStream* CreateTransactedStream(HANDLE hFile) {
 // EXIF RATIONAL PARSER
 // -------------------------------------------------------------------------
 
-static ULONGLONG ParseToExifRational(HWND hEdit, int precisionMultiplier) {
-	wchar_t szBuffer[32] = { 0 };
+static ULONGLONG ParseToExifRational(HWND hEdit, INT precisionMultiplier)
+{
+	WCHAR szBuffer[32] = { 0 };
 	GetWindowTextW(hEdit, szBuffer, 32);
 
-	const wchar_t* pszStr = szBuffer;
-	unsigned __int64 wholePart = 0;
-	unsigned __int64 fracPart = 0;
-	unsigned __int64 fracDivisor = 1;
-	int decimalFound = 0;
+	LPCWSTR pszStr = szBuffer;
+	UINT64 wholePart = 0;
+	UINT64 fracPart = 0;
+	UINT64 fracDivisor = 1;
+	INT decimalFound = 0;
 
 	// Skip any leading whitespace
-	while (*pszStr == L' ' || *pszStr == L'\t') pszStr++;
+	while (*pszStr == L' ' || *pszStr == L'\t') ++pszStr;
 
 	// Process characters using pure integer math
-	while (*pszStr) {
-		if (*pszStr >= L'0' && *pszStr <= L'9') {
-			if (decimalFound) {
+	while (*pszStr)
+	{
+		if (*pszStr >= L'0' && *pszStr <= L'9')
+		{
+			if (decimalFound)
+			{
 				fracPart = (fracPart * 10) + (*pszStr - L'0');
 				fracDivisor *= 10;
 			}
@@ -200,21 +220,22 @@ static ULONGLONG ParseToExifRational(HWND hEdit, int precisionMultiplier) {
 		}
 		else if (*pszStr == L'.') decimalFound = 1;
 		else break;
-		pszStr++;
+		++pszStr;
 	}
 
 	/* Combine whole and fractional parts into a final scaled integer numerator
 	   Formula: (wholePart * precisionMultiplier) + ((fracPart * precisionMultiplier) / fracDivisor)
 	   Adding (fracDivisor / 2) creates a pure integer round-to-nearest implementation (+0.5)*/
-	unsigned __int64 num = wholePart * precisionMultiplier;
-	if (decimalFound && fracDivisor > 1) {
-		unsigned __int64 dividend = fracPart * precisionMultiplier;
+	UINT64 num = wholePart * precisionMultiplier;
+	if (decimalFound && fracDivisor > 1)
+	{
+		UINT64 dividend = fracPart * precisionMultiplier;
 		num += (dividend + (fracDivisor / 2)) / fracDivisor;
 	}
 
 	// EXIF Little-Endian layouts place the Numerator first in memory (low 32-bits),
 	// and the Denominator second in memory (high 32-bits).
-	unsigned __int64 den = (unsigned __int64)precisionMultiplier;
+	UINT64 den = (UINT64)precisionMultiplier;
 	return (den << 32) | (num & 0xFFFFFFFFULL);
 }
 
@@ -223,21 +244,25 @@ static ULONGLONG ParseToExifRational(HWND hEdit, int precisionMultiplier) {
  -------------------------------------------------------------------------
  Note: This is actually visually lossless despite in theory WIC not being so, it has been tested.*/
 
-void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
+VOID ApplyGeotag(HWND hwndOwner, LPCWSTR pszFilePath)
+{
 	HRESULT hr = S_OK;
 
 
 # ifdef TXF
 	// 1. Ingest Original File into RAM
 	HANDLE hFileIn = CreateFileW(pszFilePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (hFileIn == INVALID_HANDLE_VALUE) {
+	if (hFileIn == INVALID_HANDLE_VALUE)
+	{
 		MessageBoxW(hwndOwner, L"Failed to read source image.", L"I/O Error", MB_OK | MB_ICONERROR);
 		return;
 	}
 
+
 	DWORD fileSize = GetFileSize(hFileIn, NULL);
-	BYTE* pMemBuffer = (BYTE*)HeapAlloc(GetProcessHeap(), 0, fileSize);
-	if (!pMemBuffer) {
+	PBYTE pMemBuffer = (PBYTE)VirtualAlloc(NULL, fileSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);//VirtualAlloc for large files
+	if (!pMemBuffer)
+	{
 		CloseHandle(hFileIn);
 		MessageBoxW(hwndOwner, L"Insufficient memory to buffer image.", L"Memory Error", MB_OK | MB_ICONERROR);
 		return;
@@ -249,16 +274,18 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 
 	// Create an IStream from our RAM buffer for the Decoder
 	IStream* piMemStream = SHCreateMemStream(pMemBuffer, bytesRead);
-	HeapFree(GetProcessHeap(), 0, pMemBuffer); // SHCreateMemStream copies data, free original heap
+	VirtualFree(pMemBuffer, 0, MEM_RELEASE); // SHCreateMemStream copies data, free original heap
 
-	if (!piMemStream) {
+	if (!piMemStream)
+	{
 		MessageBoxW(hwndOwner, L"Failed to initialize memory stream.", L"Memory Error", MB_OK | MB_ICONERROR);
 		return;
 	}
 
 	// 2. Establish KTM Boundary
 	HANDLE hTransaction = CreateTransaction(NULL, 0, 0, 0, 0, 0, L"In-Place WIC Injection");
-	if (hTransaction == INVALID_HANDLE_VALUE) {
+	if (hTransaction == INVALID_HANDLE_VALUE)
+	{
 		IStream_Release(piMemStream);
 		MessageBoxW(hwndOwner, L"Failed to create Kernel Transaction.", L"KTM Error", MB_OK | MB_ICONERROR);
 		return;
@@ -269,7 +296,8 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 	// If the transaction rolls back, NTFS restores the pre-truncation data perfectly.
 	HANDLE hTransactedFile = CreateFileTransactedW(pszFilePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, TRUNCATE_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL, hTransaction, NULL, NULL);
 
-	if (hTransactedFile == INVALID_HANDLE_VALUE) {
+	if (hTransactedFile == INVALID_HANDLE_VALUE)
+	{
 		CloseHandle(hTransaction);
 		IStream_Release(piMemStream);
 		MessageBoxW(hwndOwner, L"Failed to acquire transacted lock for in-place overwrite.", L"KTM Error", MB_OK | MB_ICONERROR);
@@ -283,7 +311,7 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 	IWICBitmapDecoder* piDecoder = NULL;
 	IWICBitmapEncoder* piEncoder = NULL;
 
-	hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, (void**)&piFactory);
+	hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, (LPVOID*)&piFactory);
 
 	// Decoder reads from RAM
 	if (SUCCEEDED(hr)) hr = IWICImagingFactory_CreateDecoderFromStream(piFactory, piMemStream, NULL, WICDecodeMetadataCacheOnDemand, &piDecoder);
@@ -301,39 +329,34 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 	IWICMetadataBlockReader* piBlockReader = NULL;
 
 	// Generate a temporary file path to stream the write process safely
-	wchar_t szTempPath[MAX_PATH];
-	wchar_t szTempFile[MAX_PATH];
+	WCHAR szTempPath[MAX_PATH];
+	WCHAR szTempFile[MAX_PATH];
 	GetTempPathW(MAX_PATH, szTempPath);
 	GetTempFileNameW(szTempPath, L"GEO", 0, szTempFile);
 
 	// 1. Create Imaging Factory
-	hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, (void**)&piFactory);
+	hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, (LPVOID*)&piFactory);
 
 	// 2. Load Source File Decoder
-	if (SUCCEEDED(hr)) {
-		hr = IWICImagingFactory_CreateDecoderFromFilename(piFactory, pszFilePath, NULL, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &piDecoder);
-	}
+	if (SUCCEEDED(hr)) hr = IWICImagingFactory_CreateDecoderFromFilename(piFactory, pszFilePath, NULL, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &piDecoder);
 
 	// 3. Create and Initialize Destination Write Stream
-	if (SUCCEEDED(hr)) {
-		hr = IWICImagingFactory_CreateStream(piFactory, &piFileStream);
-	}
-	if (SUCCEEDED(hr)) {
-		hr = IWICStream_InitializeFromFilename(piFileStream, szTempFile, GENERIC_WRITE);
-	}
+	if (SUCCEEDED(hr)) hr = IWICImagingFactory_CreateStream(piFactory, &piFileStream);
+	if (SUCCEEDED(hr)) hr = IWICStream_InitializeFromFilename(piFileStream, szTempFile, GENERIC_WRITE);
 
 	// 4. Create and Initialize Destination Encoder
-	if (SUCCEEDED(hr)) {
-		hr = IWICImagingFactory_CreateEncoder(piFactory, &GUID_ContainerFormatJpeg, NULL, &piEncoder);
-	}
-	if (SUCCEEDED(hr)) {
+	if (SUCCEEDED(hr)) hr = IWICImagingFactory_CreateEncoder(piFactory, &GUID_ContainerFormatJpeg, NULL, &piEncoder);
+	
+	if (SUCCEEDED(hr))
+	{
 		hr = IWICBitmapEncoder_Initialize(piEncoder, (IStream*)piFileStream, WICBitmapEncoderNoCache);
 #endif
 
 		UINT frameCount = 0;
 		if (SUCCEEDED(hr)) hr = IWICBitmapDecoder_GetFrameCount(piDecoder, &frameCount);
 
-		for (UINT i = 0; i < frameCount && SUCCEEDED(hr); i++) {
+		for (SIZE_T i = 0; i < frameCount && SUCCEEDED(hr); ++i)
+		{
 			IWICBitmapFrameDecode* piFrameDecode = NULL;
 			IWICBitmapFrameEncode* piFrameEncode = NULL;
 			IWICMetadataQueryWriter* piFrameQWriter = NULL;
@@ -358,13 +381,14 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 			if (SUCCEEDED(hr)) hr = IWICBitmapFrameEncode_SetPixelFormat(piFrameEncode, &pixelFormat);
 
 			// Clone Structural Metadata
-			if (SUCCEEDED(hr)) hr = IWICBitmapFrameDecode_QueryInterface(piFrameDecode, &IID_IWICMetadataBlockReader, (void**)&piBlockReader);
-			if (SUCCEEDED(hr)) hr = IWICBitmapFrameEncode_QueryInterface(piFrameEncode, &IID_IWICMetadataBlockWriter, (void**)&piBlockWriter);
+			if (SUCCEEDED(hr)) hr = IWICBitmapFrameDecode_QueryInterface(piFrameDecode, &IID_IWICMetadataBlockReader, (LPVOID*)&piBlockReader);
+			if (SUCCEEDED(hr)) hr = IWICBitmapFrameEncode_QueryInterface(piFrameEncode, &IID_IWICMetadataBlockWriter, (LPVOID*)&piBlockWriter);
 			if (SUCCEEDED(hr)) hr = IWICMetadataBlockWriter_InitializeFromBlockReader(piBlockWriter, piBlockReader);
 
 			if (SUCCEEDED(hr)) hr = IWICBitmapFrameEncode_GetMetadataQueryWriter(piFrameEncode, &piFrameQWriter);
 
-			if (SUCCEEDED(hr)) {
+			if (SUCCEEDED(hr))
+			{
 				PROPVARIANT subIfd;
 				PropVariantInit(&subIfd);
 				subIfd.vt = VT_UNKNOWN;
@@ -372,12 +396,13 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 			}
 
 			// Inject Latitude
-			if (SUCCEEDED(hr)) {
-				wchar_t szDir[4] = { 0 };
+			if (SUCCEEDED(hr))
+			{
+				WCHAR szDir[4] = { 0 };
 				GetWindowTextW(hLatDir, szDir, 4);
 
 #ifndef TXF
-				wchar_t* pszCleanDir = L"N";
+				LPCWSTR pszCleanDir = L"N";
 				if (szDir[0] == L'S' || szDir[0] == L's') pszCleanDir = L"S";
 #endif
 
@@ -391,7 +416,8 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 #endif
 				hr = IWICMetadataQueryWriter_SetMetadataByName(piFrameQWriter, L"/app1/ifd/gps/ {ushort=1}", &latRef);
 			}
-			if (SUCCEEDED(hr)) {
+			if (SUCCEEDED(hr))
+			{
 				ULONGLONG latValues[3];
 				latValues[0] = ParseToExifRational(hLatDeg, 1);
 				latValues[1] = ParseToExifRational(hLatMin, 1);
@@ -400,18 +426,19 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 				PROPVARIANT latData;
 				PropVariantInit(&latData);
 				latData.vt = VT_VECTOR | VT_UI8;
-				latData.cauh.pElems = (ULARGE_INTEGER*)latValues;
+				latData.cauh.pElems = (PULARGE_INTEGER)latValues;
 				latData.cauh.cElems = 3;
 				hr = IWICMetadataQueryWriter_SetMetadataByName(piFrameQWriter, L"/app1/ifd/gps/ {ushort=2}", &latData);
 				latData.vt = VT_EMPTY;
 			}
 
 			// Inject Longitude
-			if (SUCCEEDED(hr)) {
-				wchar_t szDir[4] = { 0 };
+			if (SUCCEEDED(hr))
+			{
+				WCHAR szDir[4] = { 0 };
 				GetWindowTextW(hLonDir, szDir, 4);
 #ifndef TXF
-				wchar_t* pszCleanDir = L"E";
+				LPCWSTR pszCleanDir = L"E";
 				if (szDir[0] == L'W' || szDir[0] == L'w') pszCleanDir = L"W";
 #endif
 				PROPVARIANT lonRef;
@@ -424,7 +451,8 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 #endif
 				hr = IWICMetadataQueryWriter_SetMetadataByName(piFrameQWriter, L"/app1/ifd/gps/ {ushort=3}", &lonRef);
 			}
-			if (SUCCEEDED(hr)) {
+			if (SUCCEEDED(hr))
+			{
 				ULONGLONG lonValues[3];
 				lonValues[0] = ParseToExifRational(hLonDeg, 1);
 				lonValues[1] = ParseToExifRational(hLonMin, 1);
@@ -433,7 +461,7 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 				PROPVARIANT lonData;
 				PropVariantInit(&lonData);
 				lonData.vt = VT_VECTOR | VT_UI8;
-				lonData.cauh.pElems = (ULARGE_INTEGER*)lonValues;
+				lonData.cauh.pElems = (PULARGE_INTEGER)lonValues;
 				lonData.cauh.cElems = 3;
 				hr = IWICMetadataQueryWriter_SetMetadataByName(piFrameQWriter, L"/app1/ifd/gps/ {ushort=4}", &lonData);
 				lonData.vt = VT_EMPTY;
@@ -474,21 +502,23 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 		if (piTransactedStream) IStream_Release(piTransactedStream);
 
 		// 6. Transacted Execution
-		if (SUCCEEDED(hr)) {
-			if (CommitTransaction(hTransaction)) {
-				MessageBoxW(hwndOwner, L"Geotags successfully injected in-place via TxF!", L"Success", MB_OK | MB_ICONINFORMATION);
-			}
-			else {
+		if (SUCCEEDED(hr))
+		{
+			if (CommitTransaction(hTransaction)) MessageBoxW(hwndOwner, L"Geotags successfully injected in-place via TxF!", L"Success", MB_OK | MB_ICONINFORMATION);
+			
+			else
+			{
 				DWORD dwCommitError = GetLastError();
 				RollbackTransaction(hTransaction);
-				wchar_t szErrorMsg[256];
+				WCHAR szErrorMsg[256];
 				wsprintfW(szErrorMsg, L"TxF Commit failed. In-place data safely reverted.\nOS Error Code: %lu", dwCommitError);
 				MessageBoxW(hwndOwner, szErrorMsg, L"Transaction Error", MB_OK | MB_ICONERROR);
 			}
 		}
-		else {
+		else
+		{
 			RollbackTransaction(hTransaction);
-			wchar_t szWicError[128];
+			WCHAR szWicError[128];
 			wsprintfW(szWicError, L"WIC serialization failed. File reverted to original state.\nHRESULT: 0x%08X", hr);
 			MessageBoxW(hwndOwner, szWicError, L"WIC Failure", MB_OK | MB_ICONERROR);
 		}
@@ -497,26 +527,24 @@ void ApplyGeotag(HWND hwndOwner, const wchar_t* pszFilePath) {
 }
 #else
 	}
-	if (SUCCEEDED(hr)) {
-		if (ReplaceFileW(pszFilePath, szTempFile, NULL, REPLACEFILE_IGNORE_MERGE_ERRORS, NULL, NULL)) {
-			MessageBoxW(hwndOwner, L"Geotags successfully embedded directly into image metadata!", L"Success", MB_OK | MB_ICONINFORMATION);
-		}
+	if (SUCCEEDED(hr))
+	{
+		if (ReplaceFileW(pszFilePath, szTempFile, NULL, REPLACEFILE_IGNORE_MERGE_ERRORS, NULL, NULL)) MessageBoxW(hwndOwner, L"Geotags successfully embedded directly into image metadata!", L"Success", MB_OK | MB_ICONINFORMATION);
+
 		else {
 			DWORD dwError = GetLastError();
-			wchar_t szErrorMsg[256];
+			WCHAR szErrorMsg[256];
 
-			if (dwError == ERROR_ACCESS_DENIED) {
-				wsprintfW(szErrorMsg, L"Access Denied (Error 5).\n\nThe file is either Read-Only, locked by another program, or tucked inside a protected folder.");
-			}
-			else {
-				wsprintfW(szErrorMsg, L"Windows CopyFileW failed with OS Error Code: %lu", dwError);
-			}
+			if (dwError == ERROR_ACCESS_DENIED) wsprintfW(szErrorMsg, L"Access Denied (Error 5).\n\nThe file is either Read-Only, locked by another program, or tucked inside a protected folder.");
+
+			else wsprintfW(szErrorMsg, L"Windows CopyFileW failed with OS Error Code: %lu", dwError);
 
 			MessageBoxW(hwndOwner, szErrorMsg, L"Write Error", MB_OK | MB_ICONERROR);
 		}
 	}
-	else {
-		wchar_t szWicError[128];
+	else
+	{
+		WCHAR szWicError[128];
 		wsprintfW(szWicError, L"An internal error occurred writing WIC EXIF blocks.\nHRESULT: 0x%08X", hr);
 		MessageBoxW(hwndOwner, szWicError, L"WIC Failure", MB_OK | MB_ICONERROR);
 	}
