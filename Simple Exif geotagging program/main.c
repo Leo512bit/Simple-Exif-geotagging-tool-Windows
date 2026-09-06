@@ -508,8 +508,8 @@ static BOOL validation(HWND hWnd, UINT uMsg, WPARAM wp)
 
 		for (SIZE_T i = 0; i < len; i++)
 		{
-			if (i == (INT)startSel) predictedText[++pIdx] = ch;
-			if (i < (INT)startSel || i >= (INT)endSel) predictedText[++pIdx] = currentText[i];
+			if (i == (INT)startSel) predictedText[pIdx++] = ch;
+			if (i < (INT)startSel || i >= (INT)endSel) predictedText[pIdx++] = currentText[i];
 		}
 		if ((INT)startSel == len) predictedText[pIdx++] = ch;
 
