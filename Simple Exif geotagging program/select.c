@@ -19,7 +19,7 @@ BOOL SelectImageFile(HWND hwndOwner)
 {
     IFileOpenDialog* pFileOpen = NULL;
     
-    HRESULT hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOpenDialog, (VOID**)&pFileOpen);
+    HRESULT hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOpenDialog, (LPVOID*)&pFileOpen);
     if (FAILED(hr)) return FALSE;
 
     // Define allowed JPEG file types
